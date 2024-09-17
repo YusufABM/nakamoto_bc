@@ -1,6 +1,8 @@
 package main
 
 import (
+	"HAND_IN_2/account"
+	"HAND_IN_2/peer"
 	"log"
 	"net"
 )
@@ -19,4 +21,31 @@ func GetOutboundIP() string {
 	}
 
 	return hostip
+}
+
+func main() {
+	ip := GetOutboundIP()
+
+	//initialize ledgers and peers
+	ledger1 := account.MakeLedger()
+	ledger2 := account.MakeLedger()
+	ledger3 := account.MakeLedger()
+	peer1 := peer.NewPeer(8081, ledger1)
+	peer2 := peer.NewPeer(8082, ledger2)
+	peer3 := peer.NewPeer(8083, ledger3)
+
+	peers := []*peer.Peer{peer1, peer2, peer3}
+
+	//Start network
+	for _, p := range peers {
+		go p.StartNewNetwork()
+	}
+
+	//Connects peers
+	//** MÅSKE PROBLEM MED CONCURRECY HER...***
+	for _, p := range peers {
+		go p.Connect(ip, p.Port)
+	}
+
+	select {}
 }
