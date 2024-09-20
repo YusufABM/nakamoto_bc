@@ -12,7 +12,7 @@ import (
 type Peer struct {
 	Port   int
 	ledger *account.Ledger
-	conn   net.Conn
+	open   bool
 	Ports  []int
 	name   string
 }
@@ -22,33 +22,65 @@ func NewPeer(port int, ledger *account.Ledger, name string) *Peer {
 	peer := new(Peer)
 	peer.Port = port
 	peer.ledger = ledger
-	peer.Ports = []int{port}
+	peer.Ports = []int{}
 	peer.name = name
+	peer.open = false
 	return peer
 }
 
 // Connects peer to a peer
 func (peer *Peer) Connect(addr string, port int) {
 	address := fmt.Sprintf("%s:%d", addr, port)
-	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+	conn, err := net.DialTimeout("tcp", address, 1*time.Second)
 	if err != nil {
-		fmt.Println("Error connecting to peer: ", err)
+		fmt.Println("Error connecting to peer, starting new network")
 		peer.StartNewNetwork()
 	}
-	peer.conn = conn
-	fmt.Printf("%s Connected to peer on port: %d\n", peer.name, port)
+	if peer.open == false {
+		go peer.StartNewNetwork()
+		peer.open = true
+	}
+
+	go peer.HandleConnection(conn)
+	peer.Ports = append(peer.Ports, port)
+	fmt.Printf("%s with port: %d, Connected to peer on port: %d\n", peer.name, peer.Port, port)
+}
+
+type Message struct {
+	Test  string
+	Ports []int
+	Port  int
 }
 
 // HandleConnection handles incoming connections from peers
-func HandleConnection(conn net.Conn) {
+func (peer *Peer) HandleConnection(conn net.Conn) {
+	msg1 := Message{peer.name, peer.Ports, peer.Port}
+
 	defer conn.Close()
-	decoder := json.NewDecoder(conn)
-	var msg account.Transaction
+	b, err := json.Marshal(msg1)
+	if err != nil {
+		fmt.Println("Error marshalling ports:", err)
+	}
+	conn.Write(b)
+
 	for {
-		if err := decoder.Decode(&msg); err != nil {
-			fmt.Println("Error decoding message:", err)
+		var msg Message
+		ReceivedMessage := make([]byte, 1024)
+		n, errcon := conn.Read(ReceivedMessage)
+		if errcon != nil {
+			fmt.Println("Error reading message:", errcon)
+		}
+		//err = json.Unmarshal([]byte(m), &msg)
+		err = json.Unmarshal(ReceivedMessage[:n], &msg)
+		if err != nil {
+			fmt.Println("Error unmarshalling message:", err)
 			return
 		}
+		fmt.Println("Received message:", msg)
+		fmt.Println(peer.name, "'s Ports ", msg.Ports)
+		peer.Ports = append(peer.Ports, msg.Port)
+		time.Sleep(1 * time.Second)
+
 	}
 }
 
@@ -67,6 +99,9 @@ func (p *Peer) StartNewNetwork() {
 			fmt.Println("Error accepting connection:", err)
 			continue
 		}
-		go HandleConnection(conn)
+		//p.Ports = append(p.Ports, port)
+		fmt.Printf("%s connected to ports: %v\n", p.name, p.Ports)
+
+		go p.HandleConnection(conn)
 	}
 }

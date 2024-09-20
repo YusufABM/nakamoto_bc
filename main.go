@@ -3,6 +3,7 @@ package main
 import (
 	"HAND_IN_2/account"
 	"HAND_IN_2/peer"
+	"fmt"
 	"log"
 	"net"
 	"time"
@@ -38,9 +39,13 @@ func main() {
 	//peers := []*peer.Peer{peer1, peer2, peer3}
 
 	go peer1.Connect(ip, 8081)
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 	go peer2.Connect(ip, 8081)
 	go peer3.Connect(ip, 8081)
+	time.Sleep(20 * time.Millisecond)
+
+	time.Sleep(3 * time.Second)
+	fmt.Printf("Peer1: %v\n", peer1.Ports)
 
 	select {}
 }

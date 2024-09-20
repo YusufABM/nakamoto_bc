@@ -22,8 +22,8 @@ Exercise 4.6 and 5.1
 - [x] **Print peer information**
   - [x] After connecting or creating a network, print the peer's IP address and port.
 
-- [ ] **Set of peers**
-  - [ ] Each peer should maintain a set of known peers in the network.
+- [x] **Set of peers**
+  - [x] Each peer should maintain a set of known peers in the network.
 
 - [ ] **Request peer set from existing peers**
   - [ ] When a peer joins, ask the existing peer for its set of peers.
@@ -48,7 +48,7 @@ Exercise 4.6 and 5.1
 
 ### Keeping a Ledger
 
-- [ ] **Implement local ledger**
+- [x] **Implement local ledger**
   - Define the `Ledger` type that maintains account balances.
 
 - [ ] **Implement Peer.FloodTransaction(tx *Transaction)**
