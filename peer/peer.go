@@ -13,13 +13,17 @@ type Peer struct {
 	Port   int
 	ledger *account.Ledger
 	conn   net.Conn
+	Ports  []int
+	name   string
 }
 
 // NewPeer creates a new instance of Peer
-func NewPeer(port int, ledger *account.Ledger) *Peer {
+func NewPeer(port int, ledger *account.Ledger, name string) *Peer {
 	peer := new(Peer)
 	peer.Port = port
 	peer.ledger = ledger
+	peer.Ports = []int{port}
+	peer.name = name
 	return peer
 }
 
@@ -29,14 +33,14 @@ func (peer *Peer) Connect(addr string, port int) {
 	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
 	if err != nil {
 		fmt.Println("Error connecting to peer: ", err)
-		panic(err)
+		peer.StartNewNetwork()
 	}
 	peer.conn = conn
-	fmt.Println("Connected to peer on port: ", port)
+	fmt.Printf("%s Connected to peer on port: %d\n", peer.name, port)
 }
 
 // HandleConnection handles incoming connections from peers
-func HandleConnection(conn net.Conn, ledger *account.Ledger) {
+func HandleConnection(conn net.Conn) {
 	defer conn.Close()
 	decoder := json.NewDecoder(conn)
 	var msg account.Transaction
@@ -63,6 +67,6 @@ func (p *Peer) StartNewNetwork() {
 			fmt.Println("Error accepting connection:", err)
 			continue
 		}
-		go HandleConnection(conn, p.ledger)
+		go HandleConnection(conn)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"HAND_IN_2/peer"
 	"log"
 	"net"
+	"time"
 )
 
 // GetOutboundIP preferred outbound ip of this machine
@@ -30,22 +31,16 @@ func main() {
 	ledger1 := account.MakeLedger()
 	ledger2 := account.MakeLedger()
 	ledger3 := account.MakeLedger()
-	peer1 := peer.NewPeer(8081, ledger1)
-	peer2 := peer.NewPeer(8082, ledger2)
-	peer3 := peer.NewPeer(8083, ledger3)
+	peer1 := peer.NewPeer(8081, ledger1, "Peer1")
+	peer2 := peer.NewPeer(8082, ledger2, "Peer2")
+	peer3 := peer.NewPeer(8083, ledger3, "Peer3")
 
-	peers := []*peer.Peer{peer1, peer2, peer3}
+	//peers := []*peer.Peer{peer1, peer2, peer3}
 
-	//Start network
-	for _, p := range peers {
-		go p.StartNewNetwork()
-	}
-
-	//Connects peers
-	//** MÅSKE PROBLEM MED CONCURRECY HER...***
-	for _, p := range peers {
-		go p.Connect(ip, p.Port)
-	}
+	go peer1.Connect(ip, 8081)
+	time.Sleep(10 * time.Millisecond)
+	go peer2.Connect(ip, 8081)
+	go peer3.Connect(ip, 8081)
 
 	select {}
 }
