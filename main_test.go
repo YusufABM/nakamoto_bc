@@ -4,8 +4,10 @@ import (
 	"HAND_IN_2/account"
 	"HAND_IN_2/peer"
 	"fmt"
+	"math/rand"
 	"net"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -21,7 +23,23 @@ func GetOutboundIP2() net.IP {
 	return localAddr.IP
 }
 
-func Test1(t *testing.T) {
+// Random transaction generator
+func randomTransaction(peer *peer.Peer, counter *int) {
+	FromAccount := "account" + strconv.Itoa(rand.Intn(6-1)+1)
+	ToAccount := "account" + strconv.Itoa(rand.Intn(6-1)+1)
+	for FromAccount == ToAccount {
+		ToAccount = "account" + strconv.Itoa(rand.Intn(6-1)+1)
+	}
+	randomAmount := rand.Intn(1000)
+	ac := account.Transaction{ID: strconv.Itoa(*counter), From: FromAccount, To: ToAccount, Amount: randomAmount}
+	peer.ExecuteTransaction(ac)
+	*counter++
+	peer.FloodTransaction(ac)
+}
+
+func Test(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	counter := 0
 	fmt.Println("Test1")
 	ip := GetOutboundIP2()
 	//initialize ledgers and peers
@@ -85,112 +103,26 @@ func Test1(t *testing.T) {
 		}
 	})
 
-	ac1 := account.Transaction{
-		ID:     "1",
-		From:   "account1",
-		To:     "account2",
-		Amount: 823,
+	// Runs 10 transactions on all peers at the same time
+	for i := 0; i < 10; i++ {
+		go randomTransaction(peer1, &counter)
+		go randomTransaction(peer2, &counter)
+		go randomTransaction(peer3, &counter)
+		go randomTransaction(peer4, &counter)
+		go randomTransaction(peer5, &counter)
+		go randomTransaction(peer6, &counter)
+		go randomTransaction(peer7, &counter)
+		go randomTransaction(peer8, &counter)
+		go randomTransaction(peer9, &counter)
+		go randomTransaction(peer10, &counter)
 	}
-	peer1.ExecuteTransaction(ac1)
-	ac2 := account.Transaction{
-		ID:     "2",
-		From:   "account2",
-		To:     "account4",
-		Amount: 129,
-	}
-	peer1.ExecuteTransaction(ac2)
-	ac3 := account.Transaction{
-		ID:     "3",
-		From:   "account3",
-		To:     "account4",
-		Amount: 398,
-	}
-	peer1.ExecuteTransaction(ac3)
-	ac4 := account.Transaction{
-		ID:     "4",
-		From:   "account1",
-		To:     "account4",
-		Amount: 989,
-	}
-	peer1.ExecuteTransaction(ac4)
-	ac5 := account.Transaction{
-		ID:     "5",
-		From:   "account5",
-		To:     "account2",
-		Amount: 321,
-	}
-	peer1.ExecuteTransaction(ac5)
-	ac6 := account.Transaction{
-		ID:     "6",
-		From:   "account3",
-		To:     "account5",
-		Amount: 590,
-	}
-	peer1.ExecuteTransaction(ac6)
-	ac7 := account.Transaction{
-		ID:     "7",
-		From:   "account4",
-		To:     "account5",
-		Amount: 147,
-	}
-	peer1.ExecuteTransaction(ac7)
-	ac8 := account.Transaction{
-		ID:     "8",
-		From:   "account1",
-		To:     "account3",
-		Amount: 289,
-	}
-	peer1.ExecuteTransaction(ac8)
-	ac9 := account.Transaction{
-		ID:     "9",
-		From:   "account5",
-		To:     "account2",
-		Amount: 900,
-	}
-	peer1.ExecuteTransaction(ac9)
-	ac10 := account.Transaction{
-		ID:     "10",
-		From:   "account2",
-		To:     "account3",
-		Amount: 540,
-	}
-	peer1.ExecuteTransaction(ac10)
-	peer1.FloodTransaction(ac1)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac2)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac3)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac4)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac5)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac6)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac7)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac8)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac9)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac10)
-	time.Sleep(50 * time.Millisecond)
 
-	//Test if the transaction is executed correctly
-	/*
-		t.Run("Transaction", func(t *testing.T) {
-			if ledger1.Accounts["Paul"] != 823 {
-				t.Errorf("Expected 823, got %d", ledger1.Accounts["Paul"])
-			}
-		})
-	*/
 	//Test if the transaction is flooded correctly
 	t.Run("Flooding", func(t *testing.T) {
 		time.Sleep(1 * time.Second)
 		if !reflect.DeepEqual(ledger1.Accounts, ledger2.Accounts) || !reflect.DeepEqual(ledger1.Accounts, ledger3.Accounts) || !reflect.DeepEqual(ledger1.Accounts, ledger4.Accounts) || !reflect.DeepEqual(ledger1.Accounts, ledger5.Accounts) || !reflect.DeepEqual(ledger1.Accounts, ledger6.Accounts) || !reflect.DeepEqual(ledger1.Accounts, ledger7.Accounts) || !reflect.DeepEqual(ledger1.Accounts, ledger8.Accounts) || !reflect.DeepEqual(ledger1.Accounts, ledger9.Accounts) || !reflect.DeepEqual(ledger1.Accounts, ledger10.Accounts) {
 			t.Errorf("Expected all ledgers to be equal, got %v\n, %v\n, %v\n, %v\n, %v\n, %v\n, %v\n, %v\n, %v\n, %v\n", ledger1.Accounts, ledger2.Accounts, ledger3.Accounts, ledger4.Accounts, ledger5.Accounts, ledger6.Accounts, ledger7.Accounts, ledger8.Accounts, ledger9.Accounts, ledger10.Accounts)
 		}
-
 	})
 
 }
