@@ -24,7 +24,7 @@ type Message struct {
 	Action string
 	Ports  []int
 	Port   int
-	tx     account.Transaction
+	Tx     account.Transaction
 }
 
 // NewPeer creates a new instance of Peer
@@ -47,7 +47,7 @@ func NewPeer(port int, ledger *account.Ledger, name string, ip string) *Peer {
 func (peer *Peer) Connect(addr string, port int) net.Conn {
 
 	if conn, exists := peer.connections[port]; exists {
-		fmt.Printf(" %s Already connected to peer on port: %d\n", peer.name, port)
+		//fmt.Printf(" %s Already connected to peer on port: %d\n", peer.name, port)
 		if conn == nil && peer.open == false {
 			go peer.StartNewNetwork()
 			peer.open = true
@@ -59,7 +59,7 @@ func (peer *Peer) Connect(addr string, port int) net.Conn {
 	address := fmt.Sprintf("%s:%d", addr, port)
 	conn, err := net.DialTimeout("tcp", address, 3*time.Second)
 	if err != nil {
-		fmt.Println("Error connecting to peer:", err)
+		//fmt.Println("Error connecting to peer:", err)
 		if !peer.open {
 			go peer.StartNewNetwork()
 			peer.open = true
@@ -68,7 +68,7 @@ func (peer *Peer) Connect(addr string, port int) net.Conn {
 	} else {
 		peer.addPeer(port, conn)
 		if len(peer.connections) == 5 {
-			fmt.Println("Max number of connections reached for peer:", peer.name)
+			//fmt.Println("Max number of connections reached for peer:", peer.name)
 		}
 	}
 
@@ -77,7 +77,7 @@ func (peer *Peer) Connect(addr string, port int) net.Conn {
 		peer.open = true
 	}
 
-	fmt.Printf("%s with port: %d, Connected to peer on port: %d\n", peer.name, peer.Port, port)
+	//fmt.Printf("%s with port: %d, Connected to peer on port: %d\n", peer.name, peer.Port, port)
 	return conn
 }
 
@@ -93,13 +93,13 @@ func (peer *Peer) HandleConnection(conn net.Conn) {
 			fmt.Println("Error reading message:", errcon)
 			return
 		}
-		fmt.Println("Received raw message:", string(ReceivedMessage[:n])) // Print the raw message
+		//fmt.Println("Received raw message:", string(ReceivedMessage[:n])) // Print the raw message
 		err := json.Unmarshal(ReceivedMessage[:n], &msg)
 		if err != nil {
 			fmt.Println("Error unmarshalling message:", err)
 			return
 		}
-		fmt.Println("Received message:", msg.Action)
+		//fmt.Println("Received message:", msg.Action)
 		go peer.handleMessage(msg)
 	}
 }
@@ -108,7 +108,7 @@ func (peer *Peer) handleMessage(msg Message) {
 	//a peer joins the network
 	//we connect to the new peer
 	if msg.Action == "join" {
-		if !peer.knownPeer(msg.Port) && msg.Port != peer.Port {
+		if !peer.KnownPeer(msg.Port) && msg.Port != peer.Port {
 			conn := peer.Connect(peer.ip, msg.Port)
 			if conn != nil {
 				go peer.HandleConnection(conn)
@@ -122,7 +122,7 @@ func (peer *Peer) handleMessage(msg Message) {
 		conn := peer.Connect(peer.ip, msg.Port)
 		if conn != nil {
 			peer.sendPeersToNewPeer(conn)
-			fmt.Println("Sent ports to new peer")
+			//fmt.Println("Sent ports to new peer")
 			go peer.HandleConnection(conn)
 		}
 	}
@@ -131,8 +131,8 @@ func (peer *Peer) handleMessage(msg Message) {
 	//for each port, if we don't know the peer, we connect to it
 	if msg.Action == "peers" {
 		for _, port := range msg.Ports {
-			if !peer.knownPeer(port) && port != peer.Port {
-				fmt.Printf("Peer: %s added %d to known peers \n", peer.name, port)
+			if !peer.KnownPeer(port) && port != peer.Port {
+				//fmt.Printf("Peer: %s added %d to known peers \n", peer.name, port)
 
 				conn := peer.Connect(peer.ip, port)
 				if conn != nil {
@@ -144,16 +144,18 @@ func (peer *Peer) handleMessage(msg Message) {
 		peer.floodMessage(msg)
 	}
 	if msg.Action == "transaction" {
-		peer.ExecuteTransaction(msg.tx) //send money to another peer
+		peer.ExecuteTransaction(msg.Tx) //Update Ledger
 	}
 }
 
 // FloodTransaction sends a transaction to all known peers
 func (peer *Peer) FloodTransaction(tx account.Transaction) {
 	//flood transaction
-	for _, conn := range peer.connections {
-		if conn != nil {
-			msg := Message{"transaction", nil, peer.Port, tx}
+	fmt.Printf("from peer %s Flooding transaction \n", peer.name)
+	for port, conn := range peer.connections {
+		if conn != nil && port != peer.Port {
+			msg := Message{Action: "transaction", Ports: nil, Port: peer.Port, Tx: tx}
+			fmt.Printf("Message: %v \n", msg)
 			b, err := json.Marshal(msg)
 			if err != nil {
 				fmt.Println("Error marshalling message:", err)
@@ -171,10 +173,13 @@ func (peer *Peer) FloodTransaction(tx account.Transaction) {
 // ExecuteTransaction executes a transaction
 // takes a transaction and updates the ledger
 func (peer *Peer) ExecuteTransaction(tx account.Transaction) {
-	fmt.Printf("length of %s 's connections: %d \n", peer.name, len(peer.connections))
-	fmt.Print(peer.getPorts())
+	//fmt.Printf("length of %s 's connections: %d \n", peer.name, len(peer.connections))
+	//fmt.Print(peer.getPorts())
 	fmt.Printf("from peer %s Executing transaction \n", peer.name)
 	peer.ledger.Transaction(&tx)
+	fmt.Println(peer.ledger.Accounts)
+	fmt.Println("From", tx.From, "to", tx.To, "Amount:", tx.Amount)
+
 }
 
 // AskForPeers asks a specific peer for its peers
@@ -226,7 +231,7 @@ func (peer *Peer) sendPeersToNewPeer(conn net.Conn) {
 	conn.Write(b)
 }
 
-func (peer *Peer) knownPeer(port int) bool {
+func (peer *Peer) KnownPeer(port int) bool {
 	for k := range peer.getPorts() {
 		if k == port {
 			return true
@@ -241,6 +246,11 @@ func (peer *Peer) getPorts() []int {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// Get amount of connections
+func (peer *Peer) GetAmountOfConnections() int {
+	return len(peer.connections)
 }
 
 func (peer *Peer) floodMessage(msg Message) {

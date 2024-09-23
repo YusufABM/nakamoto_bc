@@ -30,6 +30,9 @@ func MakeLedger() *Ledger {
 // Updates the ledger with the transaction
 // Defer unlocks the mutex at the end of the function
 func (l *Ledger) Transaction(t *Transaction) {
+	if l.Accounts == nil {
+		l.Accounts = make(map[string]int)
+	}
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
