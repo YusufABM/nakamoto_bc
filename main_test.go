@@ -77,7 +77,7 @@ func Test1(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	//Test if peer5 has connected to peer9s
+	//Test if peer5 has connected to all other peers
 	t.Run("Connections", func(t *testing.T) {
 		if peer5.GetAmountOfConnections() != 10 {
 			t.Errorf("Expected more than 10 connections, got %d", peer5.GetAmountOfConnections())
