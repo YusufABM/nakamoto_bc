@@ -87,71 +87,71 @@ func Test1(t *testing.T) {
 
 	ac1 := account.Transaction{
 		ID:     "1",
-		From:   "Brain",
-		To:     "Paul",
+		From:   "account1",
+		To:     "account2",
 		Amount: 823,
 	}
 	peer1.ExecuteTransaction(ac1)
 	ac2 := account.Transaction{
 		ID:     "2",
-		From:   "Brain",
-		To:     "Felix",
+		From:   "account2",
+		To:     "account4",
 		Amount: 129,
 	}
 	peer1.ExecuteTransaction(ac2)
 	ac3 := account.Transaction{
 		ID:     "3",
-		From:   "Thomas",
-		To:     "Felix",
+		From:   "account3",
+		To:     "account4",
 		Amount: 398,
 	}
 	peer1.ExecuteTransaction(ac3)
 	ac4 := account.Transaction{
 		ID:     "4",
-		From:   "Paul",
-		To:     "Felix",
+		From:   "account1",
+		To:     "account4",
 		Amount: 989,
 	}
 	peer1.ExecuteTransaction(ac4)
 	ac5 := account.Transaction{
 		ID:     "5",
-		From:   "Yusuf",
-		To:     "Brain",
+		From:   "account5",
+		To:     "account2",
 		Amount: 321,
 	}
 	peer1.ExecuteTransaction(ac5)
 	ac6 := account.Transaction{
 		ID:     "6",
-		From:   "Thomas",
-		To:     "Yusuf",
+		From:   "account3",
+		To:     "account5",
 		Amount: 590,
 	}
 	peer1.ExecuteTransaction(ac6)
 	ac7 := account.Transaction{
 		ID:     "7",
-		From:   "Felix",
-		To:     "Yusuf",
+		From:   "account4",
+		To:     "account5",
 		Amount: 147,
 	}
 	peer1.ExecuteTransaction(ac7)
 	ac8 := account.Transaction{
 		ID:     "8",
-		From:   "Paul",
-		To:     "Thomas",
+		From:   "account1",
+		To:     "account3",
 		Amount: 289,
 	}
 	peer1.ExecuteTransaction(ac8)
 	ac9 := account.Transaction{
 		ID:     "9",
-		From:   "Yusuf",
-		To:     "Paul",
+		From:   "account5",
+		To:     "account2",
 		Amount: 900,
 	}
 	peer1.ExecuteTransaction(ac9)
 	ac10 := account.Transaction{
 		ID:     "10",
-		From:   "Brain",
-		To:     "Thomas",
+		From:   "account2",
+		To:     "account3",
 		Amount: 540,
 	}
 	peer1.ExecuteTransaction(ac10)
