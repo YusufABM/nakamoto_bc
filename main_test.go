@@ -102,10 +102,9 @@ func Test1(t *testing.T) {
 	//Test if the transaction is flooded correctly
 	t.Run("Flooding", func(t *testing.T) {
 		peer1.ExecuteTransaction(ac)
-
+		peer1.FloodTransaction(ac)
 		time.Sleep(1 * time.Second)
 
-		peer1.FloodTransaction(ac)
 		if ledger10.Accounts["Paul"] != 823 {
 			t.Errorf("Expected 823, got %d", ledger10.Accounts["Paul"])
 		}
