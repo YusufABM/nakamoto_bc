@@ -12,7 +12,7 @@ import (
 // Peer is a struct that contains the IP address of the peer and the ledger
 type Peer struct {
 	Port        int
-	ledger      *account.Ledger
+	Ledger      *account.Ledger
 	open        bool
 	name        string
 	ip          string
@@ -32,7 +32,7 @@ type Message struct {
 func NewPeer(port int, ledger *account.Ledger, name string, ip string) *Peer {
 	peer := new(Peer)
 	peer.Port = port
-	peer.ledger = ledger
+	peer.Ledger = ledger
 	peer.name = name
 	peer.open = false
 	peer.ip = ip
@@ -146,8 +146,8 @@ func (peer *Peer) handleMessage(msg Message) {
 	}
 	if msg.Action == "transaction" {
 		peer.ExecuteTransaction(msg.St) //Update Ledger
-		s := msg.St.Signature
-		fmt.Println("Signature after marsh: ", s)
+		//s := msg.St.Signature
+		//fmt.Println("Signature after marsh: ", s)
 	}
 }
 
@@ -157,7 +157,7 @@ func (peer *Peer) FloodTransaction(st account.SignedTransaction) {
 	for port, conn := range peer.connections {
 		if conn != nil && port != peer.Port {
 			msg := Message{Action: "transaction", Ports: nil, Port: peer.Port, St: st}
-			fmt.Printf("Message: %v \n", msg)
+			//fmt.Printf("Message: %v \n", msg)
 			b, err := json.Marshal(msg)
 			if err != nil {
 				fmt.Println("Error marshalling message:", err)
@@ -177,10 +177,10 @@ func (peer *Peer) FloodTransaction(st account.SignedTransaction) {
 func (peer *Peer) ExecuteTransaction(st account.SignedTransaction) {
 	//fmt.Printf("length of %s 's connections: %d \n", peer.name, len(peer.connections))
 	//fmt.Print(peer.getPorts())
-	fmt.Printf("from peer %s Executing transaction \n", peer.name)
-	peer.ledger.ProcessSignedTransaction(&st)
-	fmt.Println(peer.ledger.Accounts)
-	fmt.Println("From", st.From, "to", st.To, "Amount:", st.Amount)
+	//fmt.Printf("from peer %s Executing transaction \n", peer.name)
+	peer.Ledger.ProcessSignedTransaction(&st)
+	//fmt.Println(peer.ledger.Accounts)
+	//fmt.Println("From", st.From, "to", st.To, "Amount:", st.Amount)
 }
 
 // AskForPeers asks a specific peer for its peers

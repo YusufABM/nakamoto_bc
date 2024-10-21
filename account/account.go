@@ -2,6 +2,7 @@ package account
 
 import (
 	"HAND_IN_2/rsa"
+	"encoding/base64"
 	"fmt"
 	"sync"
 )
@@ -63,14 +64,14 @@ func (l *Ledger) ProcessSignedTransaction(st *SignedTransaction) {
 	 */
 
 	pk := rsa.DecodePublicKey(st.From)
-	fmt.Println("decoded pk: ", pk)
+	//fmt.Println("decoded pk: ", pk)
 	validSignature := VerifySignedTransaction(pk, st)
 	if validSignature {
 		l.Accounts[st.From] -= st.Amount
 		l.Accounts[st.To] += st.Amount
 	} else {
 		fmt.Println("Invalid signature")
-		fmt.Println(st.Signature)
+		//fmt.Println(st.Signature)
 	}
 }
 
@@ -91,11 +92,21 @@ func (l *Ledger) ProcessTransaction(t *Transaction) {
 func SignTransaction(sk rsa.SecretKey, t *Transaction) SignedTransaction {
 	message := t.ID + t.From + t.To + string(t.Amount)
 	signature := rsa.SignMessage([]byte(message), sk)
-	fmt.Println("SignedSignature before: ", string(signature))
-	return SignedTransaction{ID: t.ID, From: t.From, To: t.To, Amount: t.Amount, Signature: string(signature)}
+	encodedSignature := base64.StdEncoding.EncodeToString(signature)
+	return SignedTransaction{ID: t.ID, From: t.From, To: t.To, Amount: t.Amount, Signature: encodedSignature}
 }
 
 func VerifySignedTransaction(pk rsa.PublicKey, st *SignedTransaction) bool {
 	message := st.ID + st.From + st.To + string(st.Amount)
-	return rsa.VerifySignature([]byte(message), []byte(st.Signature), pk)
+	decodedSignature, err := base64.StdEncoding.DecodeString(st.Signature)
+	if err != nil {
+		fmt.Println("Error decoding signature:", err)
+		return false
+	}
+	return rsa.VerifySignature([]byte(message), decodedSignature, pk)
+}
+
+// Get the balance of all accounts in the ledger
+func (l *Ledger) GetBalances() map[string]int {
+	return l.Accounts
 }

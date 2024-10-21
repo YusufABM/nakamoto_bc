@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"reflect"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -19,7 +20,9 @@ var accounts = make([]*account.Account, 10)
 var ports = []int{}
 var peers = make([]*peer.Peer, 10)
 var counter = 0
+var n = 0
 
+// GetOutboundIP preferred outbound ip of this machine
 func GetOutboundIP2() net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
@@ -32,12 +35,12 @@ func GetOutboundIP2() net.IP {
 }
 
 // Random transaction generator
-
 func randomTransaction(peer *peer.Peer, counter *int) {
-	fromNumber := rand.Intn(6-1) + 1
-	toNumber := rand.Intn(6-1) + 1
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+	fromNumber := rand.Intn(len(accounts))
+	toNumber := rand.Intn(len(accounts))
 	for fromNumber == toNumber {
-		toNumber = rand.Intn(6-1) + 1
+		toNumber = rand.Intn(len(accounts))
 	}
 
 	FromAccount := accounts[fromNumber]
@@ -54,24 +57,28 @@ func randomTransaction(peer *peer.Peer, counter *int) {
 	peer.FloodTransaction(st)
 }
 
-func transactionGenerator() {
-	id := "1"
-	FromAccount := accounts[1]
-	ToAccount := accounts[2]
+// PrintLedgers prints the ledgers of all peers
+func PrintLedgers(peers []*peer.Peer) {
+	for i, peer := range peers {
+		fmt.Printf("Peer %d Ledger:\n", i+1)
+		balances := peer.Ledger.Accounts
 
-	pkFrom := rsa.EncodePublicKey(FromAccount.Pk)
-	pkTo := rsa.EncodePublicKey(ToAccount.Pk)
-	ac := account.Transaction{ID: id, From: pkFrom, To: pkTo, Amount: 100}
-	fmt.Println("pk1: ", FromAccount.Pk)
-	st := account.SignTransaction(FromAccount.Sk, &ac)
-	peers[1].ExecuteTransaction(st)
-	peers[1].FloodTransaction(st)
+		accountNames := make([]string, 0, len(balances))
+		for account := range balances {
+			accountNames = append(accountNames, account)
+		}
+		sort.Strings(accountNames)
+
+		accountNumber := 1
+		for _, account := range accountNames {
+			fmt.Printf("Account %d: %d\n", accountNumber, balances[account])
+			accountNumber++
+		}
+		fmt.Println()
+	}
 }
 
 func Test(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
-	//counter := 0
-	fmt.Println("Test1")
 	ip := GetOutboundIP2()
 
 	//initialize ledger
@@ -113,34 +120,6 @@ func Test(t *testing.T) {
 			t.Errorf("Expected more than 10 connections, got %d", peers[4].GetAmountOfConnections())
 		}
 	})
-	/*
-		// Runs 10 transactions on all peers at the same time
-		for i := 0; i < 5; i++ {
-			go randomTransaction(peers[i], &counter)
-			time.Sleep(200 * time.Millisecond)
-		}
-
-		//Test if the transaction is flooded correctly
-		t.Run("Flooding", func(t *testing.T) {
-			time.Sleep(1 * time.Second)
-			for i := 1; i < 10; i++ {
-				if !reflect.DeepEqual(ledger[0].Accounts, ledger[i].Accounts) {
-					t.Errorf("Expected all ledgers to be equal, got %v\n, %v\n", ledger[0].Accounts, ledger[i].Accounts)
-				}
-			}
-		})
-	*/
-
-	transactionGenerator() // Runs 10 transactions on all peers at the same time
-	t.Run("Flooding1Message", func(t *testing.T) {
-		time.Sleep(1 * time.Second)
-		for i := 1; i < 10; i++ {
-			if !reflect.DeepEqual(ledger[0].Accounts, ledger[i].Accounts) {
-				t.Errorf("Expected all ledgers to be equal")
-				//t.Errorf("Expected all ledgers to be equal, got %v\n, %v\n", ledger[0].Accounts, ledger[i].Accounts)
-			}
-		}
-	})
 
 	//Test if public keys can be encoded and decoded
 	t.Run("EncodeDecode", func(t *testing.T) {
@@ -175,5 +154,27 @@ func Test(t *testing.T) {
 			t.Errorf("Expected account2 to have 0, got %d", ledger10.Accounts[rsa.EncodePublicKey(account2.Pk)])
 		}
 	})
+
+	// Runs 20 transactions on all peers at the same time
+	for i := 0; i < 20; i++ {
+		go randomTransaction(peers[n], &counter)
+		time.Sleep(100 * time.Millisecond)
+		n++
+		if n < len(peers) {
+			n = 0
+		}
+	}
+
+	//Test if the transaction is flooded correctly
+	t.Run("Flooding", func(t *testing.T) {
+		time.Sleep(1 * time.Second)
+		for i := 1; i < 10; i++ {
+			if !reflect.DeepEqual(ledger[0].Accounts, ledger[i].Accounts) {
+				t.Errorf("Expected all ledgers to be equal, got %v\n, %v\n", ledger[0].Accounts, ledger[i].Accounts)
+			}
+		}
+	})
+
+	PrintLedgers(peers)
 
 }

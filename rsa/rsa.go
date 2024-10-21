@@ -79,8 +79,8 @@ func SignMessage(message []byte, sk SecretKey) []byte {
 	intHashedMessage := new(big.Int).SetBytes(hashedMessage)
 	signature := big.NewInt(0)
 	signature = signature.Exp(intHashedMessage, sk.D, sk.N)
-	fmt.Println("From RSASign Signature: ", signature)
-	fmt.Println("From RSASign Hashed message: ", hashedMessage)
+	//fmt.Println("From RSASign Signature: ", signature)
+	//fmt.Println("From RSASign Hashed message: ", hashedMessage)
 
 	return signature.Bytes()
 }
@@ -91,8 +91,8 @@ func VerifySignature(message []byte, signature []byte, pk PublicKey) bool {
 	intSignature := new(big.Int).SetBytes(signature)
 	hashedMessage := hash.Sum(nil)
 	verificationMessage := intSignature.Exp(intSignature, pk.E, pk.N)
-	fmt.Println("From RSAVerify Verification message: ", verificationMessage)
-	fmt.Println("From RSAVerify Hashed message: ", hashedMessage)
+	//fmt.Println("From RSAVerify Verification message: ", verificationMessage)
+	//fmt.Println("From RSAVerify Hashed message: ", hashedMessage)
 	hm := new(big.Int).SetBytes(hashedMessage)
 
 	if verificationMessage.Cmp(hm) == 0 {
@@ -122,7 +122,7 @@ func DecodePublicKey(encodedKey string) PublicKey {
 
 	// Convert the modulus (N) back to a big.Int
 	n := new(big.Int)
-	n.SetString(parts[1], 10) // b	ase 10
+	n.SetString(parts[1], 10) // base 10
 
 	// Construct the public key
 	pubKey := PublicKey{
