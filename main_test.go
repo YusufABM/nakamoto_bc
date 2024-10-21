@@ -57,7 +57,7 @@ func randomTransaction(peer *peer.Peer, counter *int) {
 	peer.FloodTransaction(st)
 }
 
-// PrintLedgers prints the ledgers of all peers
+// Prints the ledgers of all peers
 func PrintLedgers(peers []*peer.Peer) {
 	for i, peer := range peers {
 		fmt.Printf("Peer %d Ledger:\n", i+1)
@@ -158,7 +158,7 @@ func Test(t *testing.T) {
 	// Runs 20 transactions on all peers at the same time
 	for i := 0; i < 20; i++ {
 		go randomTransaction(peers[n], &counter)
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 		n++
 		if n < len(peers) {
 			n = 0
@@ -175,6 +175,7 @@ func Test(t *testing.T) {
 		}
 	})
 
+	//Print the ledgers for debugging
 	PrintLedgers(peers)
 
 }

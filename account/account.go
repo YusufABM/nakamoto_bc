@@ -105,8 +105,3 @@ func VerifySignedTransaction(pk rsa.PublicKey, st *SignedTransaction) bool {
 	}
 	return rsa.VerifySignature([]byte(message), decodedSignature, pk)
 }
-
-// Get the balance of all accounts in the ledger
-func (l *Ledger) GetBalances() map[string]int {
-	return l.Accounts
-}
