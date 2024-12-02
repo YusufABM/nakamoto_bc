@@ -3,7 +3,6 @@ package main
 import (
 	"HAND_IN_2/account"
 	"HAND_IN_2/peer"
-	"fmt"
 	"log"
 	"net"
 	"time"
@@ -35,135 +34,51 @@ func main() {
 	peer8 := peer.NewPeer(8098, ledger8, "Peer8", ip)
 	peer9 := peer.NewPeer(8099, ledger9, "Peer9", ip)
 	peer10 := peer.NewPeer(8100, ledger10, "Peer10", ip)
+	// Create a slice of ports
 
-	go peer1.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer2.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer2.AskForPeers(8091)
-	go peer3.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer3.AskForPeers(8091)
-	go peer4.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer4.AskForPeers(8091)
-	go peer5.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer5.AskForPeers(8091)
-	go peer6.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer6.AskForPeers(8091)
-	go peer7.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer7.AskForPeers(8091)
-	go peer8.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer8.AskForPeers(8091)
-	go peer9.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer9.AskForPeers(8091)
-	go peer10.Connect(ip, 8091)
-	time.Sleep(500 * time.Millisecond)
-	go peer10.AskForPeers(8091)
+	// Create a slice of peers
+	peers := []*peer.Peer{peer1, peer2, peer3, peer4, peer5, peer6, peer7, peer8, peer9, peer10}
 
-	time.Sleep(3 * time.Second)
+	// Connect peers to the network
+	// Generate random ports for peers
+	for i := 0; i < len(peers); i++ {
+		port, err := GetFreePort()
+		if err != nil {
+			log.Fatalf("Failed to get a free port: %v", err)
+		}
+		peers[i].Port = port
+	}
 
-	ac1 := account.Transaction{
-		ID:     "1",
-		From:   "account1",
-		To:     "account2",
-		Amount: 823,
-	}
-	peer1.ExecuteTransaction(ac1)
-	ac2 := account.Transaction{
-		ID:     "2",
-		From:   "account2",
-		To:     "account4",
-		Amount: 129,
-	}
-	peer1.ExecuteTransaction(ac2)
-	ac3 := account.Transaction{
-		ID:     "3",
-		From:   "account3",
-		To:     "account4",
-		Amount: 398,
-	}
-	peer1.ExecuteTransaction(ac3)
-	ac4 := account.Transaction{
-		ID:     "4",
-		From:   "account1",
-		To:     "account4",
-		Amount: 989,
-	}
-	peer1.ExecuteTransaction(ac4)
-	ac5 := account.Transaction{
-		ID:     "5",
-		From:   "account5",
-		To:     "account2",
-		Amount: 321,
-	}
-	peer1.ExecuteTransaction(ac5)
-	ac6 := account.Transaction{
-		ID:     "6",
-		From:   "account3",
-		To:     "account5",
-		Amount: 590,
-	}
-	peer1.ExecuteTransaction(ac6)
-	ac7 := account.Transaction{
-		ID:     "7",
-		From:   "account4",
-		To:     "account5",
-		Amount: 147,
-	}
-	peer1.ExecuteTransaction(ac7)
-	ac8 := account.Transaction{
-		ID:     "8",
-		From:   "account1",
-		To:     "account3",
-		Amount: 289,
-	}
-	peer1.ExecuteTransaction(ac8)
-	ac9 := account.Transaction{
-		ID:     "9",
-		From:   "account5",
-		To:     "account2",
-		Amount: 900,
-	}
-	peer1.ExecuteTransaction(ac9)
-	ac10 := account.Transaction{
-		ID:     "10",
-		From:   "account2",
-		To:     "account3",
-		Amount: 540,
-	}
-	peer1.ExecuteTransaction(ac10)
-	peer1.FloodTransaction(ac1)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac2)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac3)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac4)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac5)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac6)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac7)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac8)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac9)
-	time.Sleep(50 * time.Millisecond)
-	peer1.FloodTransaction(ac10)
-	time.Sleep(50 * time.Millisecond)
+	go peer1.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer2.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer2.AskForPeers(peer1.Port)
+	go peer3.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer3.AskForPeers(peer1.Port)
+	go peer4.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer4.AskForPeers(peer1.Port)
+	go peer5.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer5.AskForPeers(peer1.Port)
+	go peer6.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer6.AskForPeers(peer1.Port)
+	go peer7.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer7.AskForPeers(peer1.Port)
+	go peer8.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer8.AskForPeers(peer1.Port)
+	go peer9.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer9.AskForPeers(peer1.Port)
+	go peer10.Connect(ip, peer1.Port)
+	time.Sleep(500 * time.Millisecond)
+	go peer10.AskForPeers(peer1.Port)
 
-	fmt.Println("Ledger 1 has the following accounts: ")
-
-	for account := range ledger1.Accounts {
-		fmt.Println(account, ledger1.Accounts[account])
-	}
 }
 
 func GetOutboundIP() string {
@@ -178,4 +93,16 @@ func GetOutboundIP() string {
 	}
 
 	return hostip
+}
+
+func GetFreePort() (port int, err error) {
+	var a *net.TCPAddr
+	if a, err = net.ResolveTCPAddr("tcp", "localhost:0"); err == nil {
+		var l *net.TCPListener
+		if l, err = net.ListenTCP("tcp", a); err == nil {
+			defer l.Close()
+			return l.Addr().(*net.TCPAddr).Port, nil
+		}
+	}
+	return
 }
