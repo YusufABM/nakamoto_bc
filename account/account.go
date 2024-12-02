@@ -34,6 +34,18 @@ func MakeLedger() *Ledger {
 	Ledger.Accounts = make(map[string]int)
 	return Ledger
 }
+//creates 10 accounts with 1000000 in each
+func CreateGenesisBlocks() {
+	for i := 0; i < 10; i++ {
+		// Create genesis block
+		// Create a new ledger
+		ledger := MakeLedger()
+		// Create a new account
+		account := MakeAccount()
+		// Add the account to the ledger
+		ledger.Accounts[rsa.EncodePublicKey(account.Pk)] = 1000000
+	}
+}
 
 func MakeAccount() *Account {
 	Account := new(Account)
@@ -68,7 +80,7 @@ func (l *Ledger) ProcessSignedTransaction(st *SignedTransaction) {
 	validSignature := VerifySignedTransaction(pk, st)
 	if validSignature {
 		l.Accounts[st.From] -= st.Amount
-		l.Accounts[st.To] += st.Amount
+		l.Accounts[st.To] += st.Amount-1
 	} else {
 		fmt.Println("Invalid signature")
 		//fmt.Println(st.Signature)
@@ -98,6 +110,10 @@ func SignTransaction(sk rsa.SecretKey, t *Transaction) SignedTransaction {
 
 func VerifySignedTransaction(pk rsa.PublicKey, st *SignedTransaction) bool {
 	message := st.ID + st.From + st.To + string(st.Amount)
+	if st.Amount % 1 != 0 {
+		fmt.Println("Amount is not an integer")
+		return false
+	}
 	decodedSignature, err := base64.StdEncoding.DecodeString(st.Signature)
 	if err != nil {
 		fmt.Println("Error decoding signature:", err)
