@@ -122,3 +122,18 @@ func VerifySignedTransaction(pk rsa.PublicKey, st *SignedTransaction) bool {
 	}
 	return rsa.VerifySignature([]byte(message), decodedSignature, pk)
 }
+
+// encode signed transaction to string
+func EncodeSignedTransaction(st SignedTransaction) string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(st.ID + st.From + st.To + string(st.Amount) + st.Signature))
+	return encoded
+}
+
+// encodes a list of transactions to a string
+func EncodeTransactions(transactions []SignedTransaction) string {
+	encoded := ""
+	for _, t := range transactions {
+		encoded += EncodeSignedTransaction(t)
+	}
+	return encoded
+}

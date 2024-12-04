@@ -131,3 +131,10 @@ func DecodePublicKey(encodedKey string) PublicKey {
 	}
 	return pubKey
 }
+
+// hashes a block with sha256
+func HashBlock(block string) string {
+	hash := sha256.New()
+	hash.Write([]byte(block))
+	return fmt.Sprintf("%x", hash.Sum(nil))
+}
