@@ -2,12 +2,16 @@ package peer
 
 import (
 	"HAND_IN_2/account"
+	"HAND_IN_2/block"
 	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
 	"time"
 )
+
+var HARDNESS int = 4
+var SLOTLENGTH int = 10
 
 // Peer is a struct that contains the IP address of the peer and the ledger
 type Peer struct {
@@ -17,8 +21,8 @@ type Peer struct {
 	name        string
 	ip          string
 	connections map[int]net.Conn
-
-	mu sync.Mutex
+	Account     account.Account
+	mu          sync.Mutex
 }
 
 type Message struct {
@@ -26,13 +30,15 @@ type Message struct {
 	Ports  []int
 	Port   int
 	St     account.SignedTransaction
+	block  block.Block
 }
 
 // NewPeer creates a new instance of Peer
-func NewPeer(port int, ledger *account.Ledger, name string, ip string) *Peer {
+func NewPeer(port int, ledger *account.Ledger, name string, ip string, account *account.Account) *Peer {
 	peer := new(Peer)
 	peer.Port = port
 	peer.Ledger = ledger
+	peer.Account = *account
 	peer.name = name
 	peer.open = false
 	peer.ip = ip
@@ -145,9 +151,11 @@ func (peer *Peer) handleMessage(msg Message) {
 		peer.floodMessage(msg)
 	}
 	if msg.Action == "transaction" {
-		peer.ExecuteTransaction(msg.St) //Update Ledger
-		//s := msg.St.Signature
-		//fmt.Println("Signature after marsh: ", s)
+		peer.ExecuteTransaction(msg.St)
+	}
+	if msg.Action == "block" {
+
+		//peer.Ledger.ProcessBlock(msg.St)
 	}
 }
 
@@ -188,7 +196,7 @@ func (peer *Peer) ExecuteTransaction(st account.SignedTransaction) {
 func (peer *Peer) AskForPeers(port int) {
 	conn := peer.connections[port]
 	if conn != nil {
-		msg := Message{"askForPeers", nil, peer.Port, account.SignedTransaction{}}
+		msg := Message{"askForPeers", nil, peer.Port, account.SignedTransaction{}, block.Block{}}
 		b, err := json.Marshal(msg)
 		if err != nil {
 			fmt.Println("Error marshalling message:", err)
@@ -206,6 +214,7 @@ func (peer *Peer) StartNewNetwork() {
 	fmt.Println("Starting new network on port", peer.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", peer.Port))
 	if err != nil {
+		fmt.Println("can't connect to port", peer.Port)
 		fmt.Println(err)
 		return
 	}
@@ -223,7 +232,7 @@ func (peer *Peer) StartNewNetwork() {
 }
 
 func (peer *Peer) sendPeersToNewPeer(conn net.Conn) {
-	msg1 := Message{"peers", peer.getPorts(), peer.Port, account.SignedTransaction{}}
+	msg1 := Message{"peers", peer.getPorts(), peer.Port, account.SignedTransaction{}, block.Block{}}
 
 	b, err := json.Marshal(msg1)
 	if err != nil {

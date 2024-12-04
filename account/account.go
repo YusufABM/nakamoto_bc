@@ -34,7 +34,8 @@ func MakeLedger() *Ledger {
 	Ledger.Accounts = make(map[string]int)
 	return Ledger
 }
-//creates 10 accounts with 1000000 in each
+
+// creates 10 accounts with 1000000 in each
 func CreateGenesisBlocks() {
 	for i := 0; i < 10; i++ {
 		// Create genesis block
@@ -80,7 +81,7 @@ func (l *Ledger) ProcessSignedTransaction(st *SignedTransaction) {
 	validSignature := VerifySignedTransaction(pk, st)
 	if validSignature {
 		l.Accounts[st.From] -= st.Amount
-		l.Accounts[st.To] += st.Amount-1
+		l.Accounts[st.To] += st.Amount - 1
 	} else {
 		fmt.Println("Invalid signature")
 		//fmt.Println(st.Signature)
@@ -110,7 +111,7 @@ func SignTransaction(sk rsa.SecretKey, t *Transaction) SignedTransaction {
 
 func VerifySignedTransaction(pk rsa.PublicKey, st *SignedTransaction) bool {
 	message := st.ID + st.From + st.To + string(st.Amount)
-	if st.Amount % 1 != 0 {
+	if st.Amount%1 != 0 {
 		fmt.Println("Amount is not an integer")
 		return false
 	}
