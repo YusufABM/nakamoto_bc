@@ -140,6 +140,31 @@ func setup() {
 	PrintLedgers(peers)
 }
 
+// create a block with random signedTransactions and return the block
+func createBlock(accounts []*account.Account, prevHash string) block.Block {
+	block := block.Block{PrevHash: prevHash}
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < 2; i++ {
+		fromNumber := rand.Intn(len(accounts))
+		toNumber := rand.Intn(len(accounts))
+		for fromNumber == toNumber {
+			toNumber = rand.Intn(len(accounts))
+		}
+
+		FromAccount := accounts[fromNumber]
+		ToAccount := accounts[toNumber]
+
+		pkFrom := rsa.EncodePublicKey(FromAccount.Pk)
+		pkTo := rsa.EncodePublicKey(ToAccount.Pk)
+
+		randomAmount := rand.Intn(10)
+		ac := account.Transaction{ID: strconv.Itoa(i), From: pkFrom, To: pkTo, Amount: randomAmount}
+		st := account.SignTransaction(FromAccount.Sk, &ac)
+		block.AddTransaction(&st)
+	}
+	return block
+}
+
 func Test(t *testing.T) {
 
 	//create transactions, add them to a block and sign the block and then verify the block
@@ -214,4 +239,147 @@ func Test(t *testing.T) {
 		}
 	})
 
+	//test that we can compare two heights of blocks
+	t.Run("blockHeightComparison", func(t *testing.T) {
+		account1 := account.MakeAccount()
+		block1 := block.NewBlock(nil, account1.Pk)
+		block2 := block.NewBlock(block1, account1.Pk)
+
+		if block1.Height >= block2.Height {
+			t.Errorf("Block height comparison failed")
+		}
+	})
+
+	//test that if we create a blockchain, the chainHead of the blockchain is updated
+	t.Run("chainHeadUpdate", func(t *testing.T) {
+		ledger1 := account.MakeLedger()
+		account1 := account.MakeAccount()
+		block1 := block.NewBlock(nil, account1.Pk)
+		block2 := block.NewBlock(block1, account1.Pk)
+		block3 := block.NewBlock(block2, account1.Pk)
+
+		blockchain := block.NewBlockchain(ledger1)
+		blockchain.AddBlock(*block1)
+		blockchain.AddBlock(*block2)
+		blockchain.AddBlock(*block3)
+
+		if blockchain.ChainHead.Hash != block3.Hash {
+			t.Errorf("ChainHead not updated")
+		}
+	})
+
+	//test that if we create a blockchain, with 2 chains of blocks where one is longer the chainHead of the blockchain is updated
+	t.Run("chainHeadUpdateLongerChain", func(t *testing.T) {
+		ledger1 := account.MakeLedger()
+		account1 := account.MakeAccount()
+		block1 := block.NewBlock(nil, account1.Pk)
+		block2 := block.NewBlock(block1, account1.Pk)
+		block3 := block.NewBlock(block2, account1.Pk)
+		block4 := block.NewBlock(block3, account1.Pk)
+
+		block5 := block.NewBlock(block1, account1.Pk)
+		block6 := block.NewBlock(block5, account1.Pk)
+
+		blockchain := block.NewBlockchain(ledger1)
+		blockchain.AddBlock(*block1)
+		blockchain.AddBlock(*block2)
+		blockchain.AddBlock(*block3)
+		blockchain.AddBlock(*block4)
+		blockchain.AddBlock(*block5)
+		blockchain.AddBlock(*block6)
+
+		if blockchain.ChainHead.Hash != block4.Hash {
+			t.Errorf("ChainHead not updated")
+		}
+	})
+
+	//test that transactions of a block are added to the ledger
+	t.Run("transactionsToLedger", func(t *testing.T) {
+		genesisLedger := account.MakeLedger()
+		// Create 10 accounts
+		for i := 0; i < 10; i++ {
+			// Create a new account
+			accounts[i] = account.MakeAccount()
+			// Add the account to the ledger
+			genesisLedger.Accounts[rsa.EncodePublicKey(accounts[i].Pk)] = 100
+		}
+
+		transaction1 := account.Transaction{ID: "1", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[2].Pk), Amount: 50}
+		transaction2 := account.Transaction{ID: "2", From: rsa.EncodePublicKey(accounts[2].Pk), To: rsa.EncodePublicKey(accounts[3].Pk), Amount: 30}
+		transaction3 := account.Transaction{ID: "3", From: rsa.EncodePublicKey(accounts[3].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 20}
+		signedTransaction1 := account.SignTransaction(accounts[1].Sk, &transaction1)
+		signedTransaction2 := account.SignTransaction(accounts[2].Sk, &transaction2)
+		signedTransaction3 := account.SignTransaction(accounts[3].Sk, &transaction3)
+		block1 := block.NewBlock(&block.Block{Hash: ""}, accounts[1].Pk)
+		block1.AddTransaction(&signedTransaction1)
+		block1.AddTransaction(&signedTransaction2)
+		block1.AddTransaction(&signedTransaction3)
+
+		blockchain := block.NewBlockchain(genesisLedger)
+
+		blockchain.AddBlock(*block1)
+
+		fmt.Println("blockchain ledger: ", blockchain.Ledger.Accounts)
+		if blockchain.Ledger.Accounts[rsa.EncodePublicKey(accounts[1].Pk)] != 69 {
+			t.Errorf("Account balance not correct")
+		}
+	})
+
+	//test if we add a longer chain, the blockchain ledger is updated with the new blocks
+	t.Run("longerChainToLedger", func(t *testing.T) {
+		var accounts = make([]*account.Account, 3)
+		genesisLedger := account.MakeLedger()
+		for i := 0; i < 3; i++ {
+			// Create a new account
+			accounts[i] = account.MakeAccount()
+			// Add the account to the ledger
+			genesisLedger.Accounts[rsa.EncodePublicKey(accounts[i].Pk)] = 100
+		}
+
+		blockchain := block.NewBlockchain(genesisLedger)
+
+		transaction1 := account.Transaction{ID: "1", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 50}
+		transaction2 := account.Transaction{ID: "2", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[2].Pk), Amount: 30}
+		signedTransaction1 := account.SignTransaction(accounts[0].Sk, &transaction1)
+		signedTransaction2 := account.SignTransaction(accounts[1].Sk, &transaction2)
+		block1 := block.NewBlock(&block.Block{Hash: ""}, accounts[1].Pk)
+		block1.AddTransaction(&signedTransaction1)
+		block1.AddTransaction(&signedTransaction2)
+
+		transaction1 = account.Transaction{ID: "3", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 20}
+		transaction2 = account.Transaction{ID: "4", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[0].Pk), Amount: 30}
+		signedTransaction1 = account.SignTransaction(accounts[0].Sk, &transaction1)
+		signedTransaction2 = account.SignTransaction(accounts[1].Sk, &transaction2)
+		block2 := block.NewBlock(block1, accounts[1].Pk)
+		block2.AddTransaction(&signedTransaction1)
+		block2.AddTransaction(&signedTransaction2)
+
+		transaction1 = account.Transaction{ID: "5", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 30}
+		transaction2 = account.Transaction{ID: "6", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[0].Pk), Amount: 10}
+		signedTransaction1 = account.SignTransaction(accounts[0].Sk, &transaction1)
+		signedTransaction2 = account.SignTransaction(accounts[1].Sk, &transaction2)
+		block3 := block.NewBlock(block1, accounts[1].Pk)
+		block3.AddTransaction(&signedTransaction1)
+		block3.AddTransaction(&signedTransaction2)
+
+		transaction1 = account.Transaction{ID: "7", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 10}
+		transaction2 = account.Transaction{ID: "8", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[0].Pk), Amount: 20}
+		signedTransaction1 = account.SignTransaction(accounts[0].Sk, &transaction1)
+		signedTransaction2 = account.SignTransaction(accounts[1].Sk, &transaction2)
+		block4 := block.NewBlock(block3, accounts[1].Pk)
+		block4.AddTransaction(&signedTransaction1)
+		block4.AddTransaction(&signedTransaction2)
+
+		blockchain.AddBlock(*block1)
+		blockchain.AddBlock(*block2)
+		blockchain.AddBlock(*block3)
+		blockchain.AddBlock(*block4)
+
+		fmt.Println("ledger amount for account 1 ", blockchain.Ledger.Accounts[rsa.EncodePublicKey(accounts[0].Pk)])
+
+		if blockchain.Ledger.Accounts[rsa.EncodePublicKey(accounts[0].Pk)] != 38 {
+			t.Errorf("Account balance not correct")
+		}
+
+	})
 }

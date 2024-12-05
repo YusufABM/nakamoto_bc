@@ -35,6 +35,21 @@ func MakeLedger() *Ledger {
 	return Ledger
 }
 
+func (l *Ledger) DeepCopy() *Ledger {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	newLedger := &Ledger{
+		Accounts: make(map[string]int),
+	}
+
+	for k, v := range l.Accounts {
+		newLedger.Accounts[k] = v
+	}
+
+	return newLedger
+}
+
 // creates 10 accounts with 1000000 in each
 func CreateGenesisBlocks() {
 	for i := 0; i < 10; i++ {
@@ -80,6 +95,9 @@ func (l *Ledger) ProcessSignedTransaction(st *SignedTransaction) {
 	//fmt.Println("decoded pk: ", pk)
 	validSignature := VerifySignedTransaction(pk, st)
 	if validSignature {
+		if l.Accounts[st.From] < st.Amount {
+			return
+		}
 		l.Accounts[st.From] -= st.Amount
 		l.Accounts[st.To] += st.Amount - 1
 	} else {

@@ -27,14 +27,14 @@ type Blockchain struct {
 	Ledger        *account.Ledger
 	genesisLedger *account.Ledger
 	seed          int
-	chainHead     Block
+	ChainHead     Block
 }
 
 // NewBlockchain creates a new instance of Blockchain with a genesis block where 10 accounts are created with 1000000 in each
 func NewBlockchain(ledger *account.Ledger) *Blockchain {
 	blockchain := new(Blockchain)
 	blockchain.Ledger = ledger
-	blockchain.genesisLedger = ledger
+	blockchain.genesisLedger = ledger.DeepCopy()
 	blockchain.seed = 42
 	blockchain.Blocks = make(map[string]Block)
 	return blockchain
@@ -58,10 +58,37 @@ func NewBlock(parent *Block, pk rsa.PublicKey) *Block {
 	return block
 }
 
-// adds a block to the blockchain
+// adds a block to the blockchain and makes block with biggest height chainhead
+// Calls switchToChain if the new chain is longer
 func (blockchain *Blockchain) AddBlock(block Block) {
+	currentHeight := blockchain.ChainHead.Height
+	newBlockHeight := block.Height
+	if blockchain.ChainHead.Hash == block.PrevHash {
+		blockchain.ChainHead = block
+		blockchain.addTransactionsToLedger(block.Transactions)
+	} else if newBlockHeight > currentHeight {
+		blockchain.ChainHead = block
+		blockchain.Ledger = blockchain.genesisLedger
+		blockchain.switchToChain(blockchain.ChainHead)
+	}
 	blockchain.Blocks[block.Hash] = block
-	blockchain.chainHead = block
+}
+
+func (blockchain *Blockchain) switchToChain(block Block) {
+	if block.PrevHash == "" {
+		blockchain.addTransactionsToLedger(block.Transactions)
+		return
+	} else {
+		blockchain.switchToChain(blockchain.Blocks[block.PrevHash])
+		blockchain.addTransactionsToLedger(block.Transactions)
+		return
+	}
+}
+
+func (blockchain *Blockchain) addTransactionsToLedger(signedTransaction []account.SignedTransaction) {
+	for _, signedTransaction := range signedTransaction {
+		blockchain.Ledger.ProcessSignedTransaction(&signedTransaction)
+	}
 }
 
 // add signed transaction to a block
