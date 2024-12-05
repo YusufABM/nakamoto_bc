@@ -23,6 +23,7 @@ type Peer struct {
 	connections map[int]net.Conn
 	Account     account.Account
 	mu          sync.Mutex
+	blochchain  block.Blockchain
 }
 
 type Message struct {

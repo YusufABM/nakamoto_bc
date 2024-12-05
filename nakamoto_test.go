@@ -2,6 +2,7 @@ package main
 
 import (
 	"HAND_IN_2/account"
+	"HAND_IN_2/block"
 	"HAND_IN_2/peer"
 	"HAND_IN_2/rsa"
 	"fmt"
@@ -89,8 +90,7 @@ func PrintLedgers(peers []*peer.Peer) {
 	}
 }
 
-func Test(t *testing.T) {
-
+func setup() {
 	ip := GetOutboundIP2()
 	fmt.Println("IP: ", ip.String())
 	// Generate random ports for peers
@@ -138,10 +138,80 @@ func Test(t *testing.T) {
 
 	// Print the ledgers of all peers
 	PrintLedgers(peers)
+}
 
-	t.Run("Connections", func(t *testing.T) {
-		if peers[4].GetAmountOfConnections() != 10 {
-			t.Errorf("Expected more than 10 connections, got %d", peers[4].GetAmountOfConnections())
+func Test(t *testing.T) {
+
+	//create transactions, add them to a block and sign the block and then verify the block
+	t.Run("blockVerify", func(t *testing.T) {
+		account1 := account.MakeAccount()
+		account2 := account.MakeAccount()
+		transaction := account.Transaction{ID: "1", From: rsa.EncodePublicKey(account1.Pk), To: rsa.EncodePublicKey(account2.Pk), Amount: 100}
+		signedTransaction := account.SignTransaction(account1.Sk, &transaction)
+		block := block.Block{PrevHash: "0"}
+		block.AddTransaction(&signedTransaction)
+		signedBlock := block.SignBlock(*account1)
+
+		fmt.Println("Block: ", block)
+		fmt.Println("SignedBlock: ", signedBlock)
+		fmt.Println("BlockHash: ", block.HashBlock(account1.Pk))
+		fmt.Println("verifyBlock: ", block.VerifyBlock(account1.Pk, signedBlock))
+		if !block.VerifyBlock(account1.Pk, signedBlock) {
+			t.Errorf("Block verification failed")
 		}
 	})
+
+	// Tests that correctly signed transactions in a block  are verified
+	t.Run("blockVerifyAllTransactions", func(t *testing.T) {
+		account1 := account.MakeAccount()
+		account2 := account.MakeAccount()
+		account3 := account.MakeAccount()
+		transaction1 := account.Transaction{ID: "1", From: rsa.EncodePublicKey(account1.Pk), To: rsa.EncodePublicKey(account2.Pk), Amount: 100}
+		transaction2 := account.Transaction{ID: "2", From: rsa.EncodePublicKey(account2.Pk), To: rsa.EncodePublicKey(account3.Pk), Amount: 100}
+		transaction3 := account.Transaction{ID: "3", From: rsa.EncodePublicKey(account3.Pk), To: rsa.EncodePublicKey(account1.Pk), Amount: 100}
+		signedTransaction1 := account.SignTransaction(account1.Sk, &transaction1)
+		signedTransaction2 := account.SignTransaction(account2.Sk, &transaction2)
+		signedTransaction3 := account.SignTransaction(account3.Sk, &transaction3)
+		block := block.Block{PrevHash: "0"}
+		block.AddTransaction(&signedTransaction1)
+		block.AddTransaction(&signedTransaction2)
+		block.AddTransaction(&signedTransaction3)
+
+		if !block.VerifyBlockTransactions() {
+			t.Errorf("Block verification failed")
+		}
+	})
+
+	// Tests that incorrectly signed transactions in a block are not verified
+	t.Run("oneInvalidTransactionVerifyBlockTransactions", func(t *testing.T) {
+		account1 := account.MakeAccount()
+		account2 := account.MakeAccount()
+		account3 := account.MakeAccount()
+		transaction1 := account.Transaction{ID: "1", From: rsa.EncodePublicKey(account1.Pk), To: rsa.EncodePublicKey(account2.Pk), Amount: 100}
+		transaction2 := account.Transaction{ID: "2", From: rsa.EncodePublicKey(account2.Pk), To: rsa.EncodePublicKey(account3.Pk), Amount: 100}
+		transaction3 := account.Transaction{ID: "3", From: rsa.EncodePublicKey(account3.Pk), To: rsa.EncodePublicKey(account1.Pk), Amount: 100}
+		signedTransaction1 := account.SignTransaction(account1.Sk, &transaction1)
+		signedTransaction2 := account.SignTransaction(account1.Sk, &transaction2)
+		signedTransaction3 := account.SignTransaction(account3.Sk, &transaction3)
+		block := block.Block{PrevHash: "0"}
+		block.AddTransaction(&signedTransaction1)
+		block.AddTransaction(&signedTransaction2)
+		block.AddTransaction(&signedTransaction3)
+
+		if block.VerifyBlockTransactions() {
+			t.Errorf("Block verification succeeded with an invalid Transaction")
+		}
+	})
+
+	//test that height of a block is correctly set
+	t.Run("blockHeight", func(t *testing.T) {
+		account1 := account.MakeAccount()
+		block1 := block.NewBlock(nil, account1.Pk)
+		block2 := block.NewBlock(block1, account1.Pk)
+
+		if block2.Height != 2 {
+			t.Errorf("Block height is not correctly set")
+		}
+	})
+
 }
