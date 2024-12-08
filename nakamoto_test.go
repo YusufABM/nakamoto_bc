@@ -90,56 +90,6 @@ func PrintLedgers(peers []*peer.Peer) {
 	}
 }
 
-func setup() {
-	ip := GetOutboundIP2()
-	fmt.Println("IP: ", ip.String())
-	// Generate random ports for peers
-	for i := 0; i < 10; i++ {
-		time.Sleep(50 * time.Millisecond)
-		port, err := GetFreePort()
-		if err != nil {
-			log.Fatalf("Failed to get a free port: %v", err)
-		}
-		ports = append(ports, port)
-	}
-
-	//create 10 peers and set their ledger to genesisLedger
-	genesisLedger := account.MakeLedger()
-	fmt.Println("genesisLedger: ", genesisLedger)
-	// Create 10 accounts
-	for i := 0; i < 10; i++ {
-
-		// Create a new account
-		accounts[i] = account.MakeAccount()
-		// Add the account to the ledger
-		genesisLedger.Accounts[rsa.EncodePublicKey(accounts[i].Pk)] = 1000000
-	}
-
-	for i := 0; i < 10; i++ {
-		peers[i] = peer.NewPeer(ports[i], genesisLedger, "Peer"+strconv.Itoa(i), ip.String(), accounts[i])
-	}
-
-	// Start a new network
-	for i := 0; i < 10; i++ {
-		go peers[i].StartNewNetwork()
-		fmt.Println("Peer ", i, " started a new network")
-	}
-
-	fmt.Println("genesisLedger: ", genesisLedger)
-
-	// Connect all peers
-	// Connect peers to the network
-	for i := 0; i < 10; i++ {
-		go peers[i].Connect(ip.String(), peers[0].Port)
-		fmt.Println("Peer ", i, " connected to peer 0")
-		time.Sleep(500 * time.Millisecond)
-		go peers[i].AskForPeers(peers[0].Port)
-	}
-
-	// Print the ledgers of all peers
-	PrintLedgers(peers)
-}
-
 // create a block with random signedTransactions and return the block
 func createBlock(accounts []*account.Account, prevHash string) block.Block {
 	block := block.Block{PrevHash: prevHash}
@@ -183,25 +133,25 @@ func Test(t *testing.T) {
 
 	//create 10 peers and set their ledger to genesisLedger
 	genesisLedger := account.MakeLedger()
-	fmt.Println("genesisLedger: ", genesisLedger)
+
 	// Create 10 accounts
 	for i := 0; i < 10; i++ {
 
 		// Create a new account
 		accounts[i] = account.MakeAccount()
 		// Add the account to the ledger
-		genesisLedger.Accounts[rsa.EncodePublicKey(accounts[i].Pk)] = 1000000
+		genesisLedger.Accounts[rsa.EncodePublicKey(accounts[i].Pk)] = 100
 	}
-
+	genesisTime := time.Now()
 	for i := 0; i < 10; i++ {
-		peers[i] = peer.NewPeer(ports[i], genesisLedger, "Peer"+strconv.Itoa(i), ip.String(), accounts[i])
+		peers[i] = peer.NewPeer(ports[i], genesisLedger, "Peer"+strconv.Itoa(i), ip.String(), accounts[i], genesisTime)
 	}
 
 	// Start a new network
 	for i := 0; i < 10; i++ {
 		go peers[i].StartNewNetwork()
 		fmt.Println("Peer ", i, " started a new network")
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	fmt.Println("genesisLedger: ", genesisLedger)
@@ -211,7 +161,7 @@ func Test(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go peers[i].Connect(ip.String(), peers[0].Port)
 		fmt.Println("Peer ", i, " connected to peer 0")
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 		go peers[i].AskForPeers(peers[0].Port)
 	}
 
@@ -225,7 +175,7 @@ func Test(t *testing.T) {
 		signedTransaction := account.SignTransaction(account1.Sk, &transaction)
 		transactions := []account.SignedTransaction{signedTransaction}
 		block := block.NewBlock(&block.Block{Hash: ""}, transactions, account1.Pk)
-		signedBlock := block.SignBlock(*account1)
+		signedBlock := block.SignBlock(account1.Pk, account1.Sk)
 
 		fmt.Println("Block: ", block)
 		fmt.Println("SignedBlock: ", signedBlock)
@@ -304,7 +254,7 @@ func Test(t *testing.T) {
 		block2 := block.NewBlock(block1, make([]account.SignedTransaction, 0), account1.Pk)
 		block3 := block.NewBlock(block2, make([]account.SignedTransaction, 0), account1.Pk)
 
-		blockchain := block.NewBlockchain(ledger1)
+		blockchain := block.NewBlockchain(ledger1, time.Now())
 		blockchain.AddBlock(*block1)
 		blockchain.AddBlock(*block2)
 		blockchain.AddBlock(*block3)
@@ -326,7 +276,7 @@ func Test(t *testing.T) {
 		block5 := block.NewBlock(block1, make([]account.SignedTransaction, 0), account1.Pk)
 		block6 := block.NewBlock(block5, make([]account.SignedTransaction, 0), account1.Pk)
 
-		blockchain := block.NewBlockchain(ledger1)
+		blockchain := block.NewBlockchain(ledger1, time.Now())
 		blockchain.AddBlock(*block1)
 		blockchain.AddBlock(*block2)
 		blockchain.AddBlock(*block3)
@@ -359,7 +309,7 @@ func Test(t *testing.T) {
 		transactions := []account.SignedTransaction{signedTransaction1, signedTransaction2, signedTransaction3}
 		block1 := block.NewBlock(&block.Block{Hash: ""}, transactions, accounts[1].Pk)
 
-		blockchain := block.NewBlockchain(genesisLedger)
+		blockchain := block.NewBlockchain(genesisLedger, time.Now())
 
 		blockchain.AddBlock(*block1)
 
@@ -380,7 +330,7 @@ func Test(t *testing.T) {
 			genesisLedger.Accounts[rsa.EncodePublicKey(accounts[i].Pk)] = 100
 		}
 
-		blockchain := block.NewBlockchain(genesisLedger)
+		blockchain := block.NewBlockchain(genesisLedger, time.Now())
 
 		transaction1 := account.Transaction{ID: "1", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 50}
 		transaction2 := account.Transaction{ID: "2", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[2].Pk), Amount: 30}
@@ -423,15 +373,59 @@ func Test(t *testing.T) {
 
 	})
 
-	//test that we can send a block to peers
+	//test that we can send a block without transaction to peers
 	t.Run("sendEmptyBlockToPeers", func(t *testing.T) {
-		block1 := createBlock(accounts, "")
+		transactions := []account.SignedTransaction{}
+		block1 := block.NewBlock(&block.Block{Hash: ""}, transactions, accounts[0].Pk)
 		// create lotteryBlock
-		lotteryBlock := block.Lottery{Block: &block1, Slot: 1, Pk: accounts[0].Pk, Draw: 1}
-		peers[0].SendBlockToPeers(lotteryBlock)
+		lotteryBlock := block.NewLotteryBlock(*block1, accounts[0].Pk, accounts[0].Sk, []byte{1})
+		initialState := block1.VerifyBlock(accounts[0].Pk, lotteryBlock.Signature)
+		if !initialState {
+			t.Errorf("Block not signed correctly")
+		}
+		peers[0].SendBlockToPeers(*lotteryBlock)
+		time.Sleep(1 * time.Second)
 		if len(peers[1].Blockchain.Blocks) == 0 {
 			t.Errorf("Block not received by peer")
 		}
+	})
+
+	//test that we can send a block with a transaction to peers
+	t.Run("sendBlockToPeers", func(t *testing.T) {
+
+		transaction1 := account.Transaction{ID: "1", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 50}
+		transaction2 := account.Transaction{ID: "2", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[2].Pk), Amount: 30}
+		signedTransaction1 := account.SignTransaction(accounts[0].Sk, &transaction1)
+		signedTransaction2 := account.SignTransaction(accounts[1].Sk, &transaction2)
+		transactions := []account.SignedTransaction{signedTransaction1, signedTransaction2}
+		block1 := block.NewBlock(&block.Block{Hash: ""}, transactions, accounts[0].Pk)
+
+		fmt.Println(peers[1].Blockchain.Ledger.Accounts)
+
+		// create lotteryBlock
+		lotteryBlock := block.Lottery{Block: block1, Slot: 1, Pk: accounts[0].Pk, Draw: 1, Signature: block1.SignBlock(accounts[0].Pk, accounts[0].Sk)}
+		peers[0].SendBlockToPeers(lotteryBlock)
+		time.Sleep(3 * time.Second)
+		fmt.Println(peers[1].Blockchain.Ledger.Accounts)
+		if len(peers[1].Blockchain.Blocks[block1.Hash].Transactions) == 0 {
+			t.Errorf("Block not proccessed by peer")
+		}
+	})
+
+	//test that we can flood a transaction to peers
+	t.Run("floodTransactionToPeers", func(t *testing.T) {
+		transaction1 := account.Transaction{ID: "1", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 50}
+		signedTransaction1 := account.SignTransaction(accounts[0].Sk, &transaction1)
+		peers[0].FloodTransaction(signedTransaction1)
+		time.Sleep(1 * time.Second)
+		if len(peers[1].Transactions) == 0 {
+			t.Errorf("Transaction not received by peer")
+		}
+	})
+
+	//test the output of lottery
+	t.Run("lotteryOutput", func(t *testing.T) {
+		time.Sleep(50 * time.Second)
 	})
 
 }

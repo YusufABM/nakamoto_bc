@@ -11,6 +11,7 @@ import (
 )
 
 const SLOTLENGTH int = 1
+const HARDNESS int = 251000000
 
 // Block is a struct that contains the previous hash, the hash, the nonce, the transactions and the timestamp
 type Block struct {
@@ -18,16 +19,17 @@ type Block struct {
 	Hash         string
 	Transactions []account.SignedTransaction
 	Height       int
-	timeStamp    time.Time
 }
 
 // Blockchain is a struct that contains the blocks and the ledger
 type Blockchain struct {
 	Blocks        map[string]Block
 	Ledger        *account.Ledger
-	genesisLedger *account.Ledger
-	seed          int
+	GenesisLedger *account.Ledger
+	Seed          int
 	ChainHead     Block
+	StartTime     time.Time
+	BlockSize     int
 }
 
 type Lottery struct {
@@ -35,25 +37,35 @@ type Lottery struct {
 	Slot      int
 	Pk        rsa.PublicKey
 	Draw      int
-	signature []byte
+	Signature []byte
 }
 
 // NewBlockchain creates a new instance of Blockchain with a genesis block where 10 accounts are created with 1000000 in each
-func NewBlockchain(ledger *account.Ledger) *Blockchain {
+func NewBlockchain(ledger *account.Ledger, startTime time.Time) *Blockchain {
 	blockchain := new(Blockchain)
-	blockchain.Ledger = ledger
-	blockchain.genesisLedger = ledger.DeepCopy()
-	blockchain.seed = 42
+	blockchain.Ledger = ledger.DeepCopy()
+	blockchain.GenesisLedger = ledger.DeepCopy()
+	blockchain.Seed = 42
+	blockchain.StartTime = startTime
 	blockchain.Blocks = make(map[string]Block)
+	blockchain.BlockSize = 10
 	return blockchain
+}
+
+func NewLotteryBlock(block Block, pk rsa.PublicKey, sk rsa.SecretKey, slotNum []byte) *Lottery {
+	lottery := new(Lottery)
+	lottery.Block = &block
+	lottery.Pk = pk
+	//sets lottery.slot to the entire slotNum array
+	lottery.Slot = int(slotNum[0])
+	lottery.Signature = block.SignBlock(pk, sk)
+	return lottery
 }
 
 func NewBlock(parent *Block, transactions []account.SignedTransaction, pk rsa.PublicKey) *Block {
 	block := new(Block)
-
 	parentHash := ""
 	block.Transactions = transactions
-	block.timeStamp = time.Now()
 	if parent != nil {
 		block.Height = parent.Height + 1
 		parentHash = parent.Hash
@@ -76,7 +88,7 @@ func (blockchain *Blockchain) AddBlock(block Block) {
 		blockchain.addTransactionsToLedger(block.Transactions)
 	} else if newBlockHeight > currentHeight {
 		blockchain.ChainHead = block
-		blockchain.Ledger = blockchain.genesisLedger
+		blockchain.Ledger = blockchain.GenesisLedger.DeepCopy()
 		blockchain.switchToChain(blockchain.ChainHead)
 	}
 	blockchain.Blocks[block.Hash] = block
@@ -106,24 +118,33 @@ func (block *Block) AddTransaction(st *account.SignedTransaction) {
 
 // hashes a block
 func (block *Block) HashBlock(key rsa.PublicKey) string {
-	blockData := rsa.EncodePublicKey(key) + block.PrevHash + fmt.Sprintf("%d", (block.timeStamp.Second()/SLOTLENGTH)+1) + account.EncodeTransactions(block.Transactions) + block.timeStamp.String()
+	blockData := rsa.EncodePublicKey(key) + block.PrevHash + account.EncodeTransactions(block.Transactions)
 	hash := sha256.New()
 	hash.Write([]byte(blockData))
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
 // signs a block
-func (block *Block) SignBlock(key account.Account) []byte {
-	blockData := rsa.EncodePublicKey(key.Pk) + block.PrevHash + fmt.Sprintf("%d", (block.timeStamp.Second()/SLOTLENGTH)+1) + account.EncodeTransactions(block.Transactions) + block.timeStamp.String() + block.Hash
-	signedMessage := rsa.SignMessage([]byte(blockData), key.Sk)
+func (block *Block) SignBlock(pk rsa.PublicKey, sk rsa.SecretKey) []byte {
+	blockData := rsa.EncodePublicKey(pk) + block.PrevHash + account.EncodeTransactions(block.Transactions) + block.Hash
+	signedMessage := rsa.SignMessage([]byte(blockData), sk)
+	fmt.Println("Block signed")
 	return signedMessage
 }
 
 // verifies a block
 func (block *Block) VerifyBlock(key rsa.PublicKey, signature []byte) bool {
-	blockData := rsa.EncodePublicKey(key) + block.PrevHash + fmt.Sprintf("%d", (block.timeStamp.Second()/SLOTLENGTH)+1) + account.EncodeTransactions(block.Transactions) + block.timeStamp.String() + block.Hash
+	blockData := rsa.EncodePublicKey(key) + block.PrevHash + account.EncodeTransactions(block.Transactions) + block.Hash
 	verifiedSignature := rsa.VerifySignature([]byte(blockData), signature, key)
 	validBlockTransactions := block.VerifyBlockTransactions()
+
+	if !verifiedSignature {
+		fmt.Println("Signature not verified")
+	} else if !validBlockTransactions {
+		fmt.Println("Block transactions not verified")
+	} else {
+		fmt.Println("Block verified")
+	}
 	return verifiedSignature && validBlockTransactions
 }
 
@@ -140,11 +161,11 @@ func (block *Block) VerifyBlockTransactions() bool {
 
 // processes a block taken as a parameter
 func (blockchain *Blockchain) ProcessLotteryBlock(lottery Lottery) {
-	verified := lottery.Block.VerifyBlock(lottery.Pk, lottery.signature)
+	verified := lottery.Block.VerifyBlock(lottery.Pk, lottery.Signature)
 	if verified {
 		blockchain.AddBlock(*lottery.Block)
-		fmt.Println("Block verified")
+		fmt.Println("Lottery Block verified")
 	} else {
-		fmt.Println("Block not verified")
+		fmt.Println("Lottery Block not verified")
 	}
 }

@@ -3,27 +3,31 @@ package peer
 import (
 	"HAND_IN_2/account"
 	"HAND_IN_2/block"
+	"HAND_IN_2/rsa"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 )
 
 var HARDNESS int = 4
-var SLOTLENGTH int = 10
+var SLOTLENGTH int = 1
 
 // Peer is a struct that contains the IP address of the peer and the ledger
 type Peer struct {
-	Port        int
-	Ledger      *account.Ledger
-	open        bool
-	name        string
-	ip          string
-	connections map[int]net.Conn
-	Account     account.Account
-	mu          sync.Mutex
-	Blockchain  block.Blockchain
+	Port         int
+	Ledger       *account.Ledger
+	open         bool
+	name         string
+	ip           string
+	connections  map[int]net.Conn
+	Account      account.Account
+	mu           sync.Mutex
+	Blockchain   block.Blockchain
+	Transactions []account.SignedTransaction
 }
 
 type Message struct {
@@ -35,16 +39,18 @@ type Message struct {
 }
 
 // NewPeer creates a new instance of Peer
-func NewPeer(port int, ledger *account.Ledger, name string, ip string, account *account.Account) *Peer {
+func NewPeer(port int, ledger *account.Ledger, name string, ip string, account1 *account.Account, time time.Time) *Peer {
 	peer := new(Peer)
 	peer.Port = port
-	peer.Account = *account
-	peer.Blockchain = *block.NewBlockchain(ledger)
+	peer.Account = *account1
+	peer.Blockchain = *block.NewBlockchain(ledger, time)
 	peer.name = name
 	peer.open = false
 	peer.ip = ip
 	peer.connections = make(map[int]net.Conn)
 	peer.connections[port] = nil
+	//sets peer.transactions to an empty slice
+	peer.Transactions = make([]account.SignedTransaction, 0)
 	return peer
 }
 
@@ -62,9 +68,6 @@ func (peer *Peer) Connect(addr string, port int) net.Conn {
 		} else {
 			return conn
 		}
-	}
-	if peer.name == "Peer2" {
-		fmt.Println("Connecting to port: ", port)
 	}
 	address := fmt.Sprintf("%s:%d", addr, port)
 	conn, err := net.DialTimeout("tcp", address, 3*time.Second)
@@ -157,10 +160,80 @@ func (peer *Peer) handleMessage(msg Message) {
 		peer.ExecuteTransaction(msg.St)
 	}
 	if msg.Action == "block" {
-		fmt.Print("Received block from peer:")
+		fmt.Println("Received block from peer:")
 		lotteryBlock := msg.LotteryBlock
 		peer.Blockchain.ProcessLotteryBlock(lotteryBlock)
 	}
+	if msg.Action == "lottery" {
+		verifyDraw := peer.verifyDraw(msg.LotteryBlock.Signature, []byte(strconv.Itoa(msg.LotteryBlock.Slot)), msg.LotteryBlock.Pk)
+		slotNum := []byte(strconv.Itoa(msg.LotteryBlock.Slot))
+		pk := msg.LotteryBlock.Pk
+
+		if verifyDraw {
+			hash := peer.HashTicket(slotNum, pk, msg.LotteryBlock.Signature)
+			stake := peer.Blockchain.GenesisLedger.Accounts[rsa.EncodePublicKey(pk)]
+			tickets := hash * stake
+			if tickets > block.HARDNESS {
+				fmt.Println("received Lottery Block created")
+				peer.Blockchain.ProcessLotteryBlock(msg.LotteryBlock)
+				peer.DeleteTransactions()
+			} else {
+				fmt.Println("Block not created invalid tickets")
+			}
+		} else {
+			fmt.Println("Invalid signature on draw")
+		}
+	}
+}
+
+func (p *Peer) verifyDraw(signature []byte, slot []byte, pk rsa.PublicKey) bool {
+	data := "lottery" + strconv.Itoa(p.Blockchain.Seed) + string(slot)
+	hash := sha256.New()
+	hash.Write([]byte(data))
+	hashedMessage := hash.Sum(nil)
+	return rsa.VerifySignature(hashedMessage, signature, pk)
+}
+
+func (p *Peer) lottery() {
+
+	// Create a ticker that triggers every second
+	ticker := time.NewTicker(time.Duration(block.SLOTLENGTH) * time.Second)
+	defer ticker.Stop() // Clean up the ticker when the program exits
+
+	// Use a channel to signal program termination
+	done := make(chan bool)
+
+	// Start a goroutine to handle the ticks
+	go func() {
+		for {
+			select {
+			case <-done:
+				return // Exit the goroutine when signaled
+			case t := <-ticker.C:
+				// Code to run every second
+				slotNum := []byte(strconv.Itoa(p.CurrenetSlotNum()))
+				ticket := p.HashTicket(slotNum, p.Account.Pk, p.signDraw(slotNum))
+				if ticket > block.HARDNESS {
+					fmt.Println("Block created")
+					fmt.Println("Ticket:", ticket)
+					fmt.Println("Peer:", p.name)
+					fmt.Println("slot:", p.CurrenetSlotNum())
+					winnerBlock := block.NewBlock(&p.Blockchain.ChainHead, p.Transactions, p.Account.Pk)
+					lotteryBlock := block.NewLotteryBlock(*winnerBlock, p.Account.Pk, p.Account.Sk, slotNum)
+					p.SendLottery(*lotteryBlock)
+					p.Blockchain.ProcessLotteryBlock(*lotteryBlock)
+					p.DeleteTransactions()
+				}
+				fmt.Println("Lottery ticket:", ticket)
+				fmt.Println("Time:", t)
+
+			}
+		}
+	}()
+
+	// Simulate running the program for 10 seconds
+	time.Sleep(100 * time.Second)
+	fmt.Println("Program finished")
 }
 
 // FloodTransaction sends a transaction to all known peers
@@ -190,9 +263,21 @@ func (peer *Peer) ExecuteTransaction(st account.SignedTransaction) {
 	//fmt.Printf("length of %s 's connections: %d \n", peer.name, len(peer.connections))
 	//fmt.Print(peer.getPorts())
 	//fmt.Printf("from peer %s Executing transaction \n", peer.name)
-	peer.Ledger.ProcessSignedTransaction(&st)
-	//fmt.Println(peer.ledger.Accounts)
-	//fmt.Println("From", st.From, "to", st.To, "Amount:", st.Amount)
+	isVerified := account.VerifySignedTransaction(rsa.DecodePublicKey(st.From), &st)
+	if isVerified {
+		peer.Transactions = append(peer.Transactions, st)
+	}
+
+}
+
+// delete blocksize transactions
+func (peer *Peer) DeleteTransactions() {
+	length := len(peer.Transactions)
+	if length > peer.Blockchain.BlockSize {
+		length = peer.Blockchain.BlockSize
+	}
+
+	peer.Transactions = peer.Transactions[length:]
 }
 
 // AskForPeers asks a specific peer for its peers
@@ -200,7 +285,7 @@ func (peer *Peer) ExecuteTransaction(st account.SignedTransaction) {
 func (peer *Peer) AskForPeers(port int) {
 	conn := peer.connections[port]
 	if conn != nil {
-		msg := Message{Action: "AskForPeers", SendingPort: peer.Port}
+		msg := Message{Action: "askForPeers", SendingPort: peer.Port}
 		b, err := json.Marshal(msg)
 		if err != nil {
 			fmt.Println("Error marshalling message:", err)
@@ -213,6 +298,37 @@ func (peer *Peer) AskForPeers(port int) {
 
 }
 
+func (p *Peer) signDraw(slot []byte) []byte {
+	data := "lottery" + strconv.Itoa(p.Blockchain.Seed) + string(slot)
+	return rsa.SignMessage([]byte(data), p.Account.Sk)
+}
+
+func (p *Peer) HashTicket(slotNum []byte, pk rsa.PublicKey, signature []byte) int {
+
+	data := strconv.Itoa(p.Blockchain.Seed) + string(slotNum) + string(rsa.EncodePublicKey(pk)) + string(signature)
+	//hash the data
+	hash := sha256.New()
+	hash.Write([]byte(data))
+	hashedMessage := hash.Sum(nil)
+	return int(hashedMessage[0]) * 1000000
+}
+
+// GenerateLotterySignature creates a signature for a slot
+func (p *Peer) GenerateLotterySignature() []byte {
+	slot := p.CurrenetSlotNum()
+	Sk := p.Account.Sk
+	return rsa.SignMessage([]byte(strconv.Itoa(slot)), Sk)
+}
+
+// CurrenetSlotNum returns the current slot number as a byte array
+func (peer *Peer) CurrenetSlotNum() int {
+	GenTime := peer.Blockchain.StartTime
+	elapsed := time.Since(GenTime).Seconds()
+	fmt.Println("Elapsed time", elapsed)
+	fmt.Println("Slot num", int(elapsed)/SLOTLENGTH)
+	return int(elapsed) / SLOTLENGTH
+}
+
 // StartNewNetwork starts a new network with the peer itself as the only member
 func (peer *Peer) StartNewNetwork() {
 	fmt.Println("Starting new network on port", peer.Port)
@@ -222,6 +338,7 @@ func (peer *Peer) StartNewNetwork() {
 		fmt.Println(err)
 		return
 	}
+	go peer.lottery()
 	peer.open = true
 	defer listener.Close()
 
@@ -263,6 +380,25 @@ func (peer *Peer) SendBlockToPeers(lotteryBlock block.Lottery) {
 		}
 	}
 	fmt.Println("Block sent to peers")
+}
+
+func (peer *Peer) SendLottery(lotteryBlock block.Lottery) {
+	msg := Message{Action: "lottery", SendingPort: peer.Port, LotteryBlock: lotteryBlock}
+	b, err := json.Marshal(msg)
+	if err != nil {
+		fmt.Println("Error marshalling message:", err)
+		return
+	}
+	for _, conn := range peer.connections {
+		if conn != nil {
+			_, err = conn.Write(b)
+			if err != nil {
+				fmt.Println("Error writing to connection:", err)
+				continue
+			}
+		}
+	}
+	fmt.Println("Lottery sent to peers")
 }
 
 func (peer *Peer) KnownPeer(port int) bool {

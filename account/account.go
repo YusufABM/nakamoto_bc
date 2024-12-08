@@ -20,6 +20,14 @@ type Transaction struct {
 	Amount int
 }
 
+type SignedTransaction struct {
+	ID        string // Any string
+	From      string // A verifaction key coded as a string
+	To        string // A verifaction key coded as a string
+	Amount    int    // Amount to transfer
+	Signature string // Potential signature coded as string
+}
+
 // Ledger is a map of account names to balances
 // sync.Mutex = It is safe for concurrent use
 type Ledger struct {
@@ -74,14 +82,6 @@ func MakeAccount() *Account {
 	return Account
 }
 
-type SignedTransaction struct {
-	ID        string // Any string
-	From      string // A verifaction key coded as a string
-	To        string // A verifaction key coded as a string
-	Amount    int    // Amount to transfer
-	Signature string // Potential signature coded as string
-}
-
 func (l *Ledger) ProcessSignedTransaction(st *SignedTransaction) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
@@ -96,6 +96,9 @@ func (l *Ledger) ProcessSignedTransaction(st *SignedTransaction) {
 	validSignature := VerifySignedTransaction(pk, st)
 	if validSignature {
 		if l.Accounts[st.From] < st.Amount {
+			fmt.Println("Not enough money in account")
+			fmt.Println("From: ", st.From)
+			fmt.Println("Amount: ", st.Amount)
 			return
 		}
 		l.Accounts[st.From] -= st.Amount
