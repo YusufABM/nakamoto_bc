@@ -23,23 +23,23 @@ type Peer struct {
 	connections map[int]net.Conn
 	Account     account.Account
 	mu          sync.Mutex
-	blochchain  block.Blockchain
+	Blockchain  block.Blockchain
 }
 
 type Message struct {
-	Action string
-	Ports  []int
-	Port   int
-	St     account.SignedTransaction
-	block  block.Block
+	Action       string
+	Ports        []int
+	SendingPort  int
+	St           account.SignedTransaction
+	LotteryBlock block.Lottery
 }
 
 // NewPeer creates a new instance of Peer
 func NewPeer(port int, ledger *account.Ledger, name string, ip string, account *account.Account) *Peer {
 	peer := new(Peer)
 	peer.Port = port
-	peer.Ledger = ledger
 	peer.Account = *account
+	peer.Blockchain = *block.NewBlockchain(ledger)
 	peer.name = name
 	peer.open = false
 	peer.ip = ip
@@ -56,14 +56,16 @@ func (peer *Peer) Connect(addr string, port int) net.Conn {
 
 	if conn, exists := peer.connections[port]; exists {
 		fmt.Printf(" %s Already connected to peer on port: %d\n", peer.name, port)
-		if conn == nil && peer.open == false {
+		if conn == nil && !peer.open {
 			go peer.StartNewNetwork()
 			peer.open = true
 		} else {
 			return conn
 		}
 	}
-
+	if peer.name == "Peer2" {
+		fmt.Println("Connecting to port: ", port)
+	}
 	address := fmt.Sprintf("%s:%d", addr, port)
 	conn, err := net.DialTimeout("tcp", address, 3*time.Second)
 	if err != nil {
@@ -116,18 +118,18 @@ func (peer *Peer) handleMessage(msg Message) {
 	//a peer joins the network
 	//we connect to the new peer
 	if msg.Action == "join" {
-		if !peer.KnownPeer(msg.Port) && msg.Port != peer.Port {
-			conn := peer.Connect(peer.ip, msg.Port)
+		if !peer.KnownPeer(msg.SendingPort) && msg.SendingPort != peer.Port {
+			conn := peer.Connect(peer.ip, msg.SendingPort)
 			if conn != nil {
 				go peer.HandleConnection(conn)
-				peer.addPeer(msg.Port, conn)
+				peer.addPeer(msg.SendingPort, conn)
 			}
 		}
 	}
 	//a peer asks for peers
 	//we send the ports to the new peer
 	if msg.Action == "askForPeers" {
-		conn := peer.Connect(peer.ip, msg.Port)
+		conn := peer.Connect(peer.ip, msg.SendingPort)
 		if conn != nil {
 			peer.sendPeersToNewPeer(conn)
 			fmt.Println("Sent ports to new peer")
@@ -148,15 +150,16 @@ func (peer *Peer) handleMessage(msg Message) {
 				}
 			}
 		}
-		msg := Message{Action: "join", Ports: peer.getPorts(), Port: peer.Port}
+		msg := Message{Action: "join", Ports: peer.getPorts(), SendingPort: peer.Port}
 		peer.floodMessage(msg)
 	}
 	if msg.Action == "transaction" {
 		peer.ExecuteTransaction(msg.St)
 	}
 	if msg.Action == "block" {
-
-		//peer.Ledger.ProcessBlock(msg.St)
+		fmt.Print("Received block from peer:")
+		lotteryBlock := msg.LotteryBlock
+		peer.Blockchain.ProcessLotteryBlock(lotteryBlock)
 	}
 }
 
@@ -165,7 +168,7 @@ func (peer *Peer) FloodTransaction(st account.SignedTransaction) {
 	//flood transaction
 	for port, conn := range peer.connections {
 		if conn != nil && port != peer.Port {
-			msg := Message{Action: "transaction", Ports: nil, Port: peer.Port, St: st}
+			msg := Message{Action: "transaction", SendingPort: peer.Port, St: st}
 			//fmt.Printf("Message: %v \n", msg)
 			b, err := json.Marshal(msg)
 			if err != nil {
@@ -197,7 +200,7 @@ func (peer *Peer) ExecuteTransaction(st account.SignedTransaction) {
 func (peer *Peer) AskForPeers(port int) {
 	conn := peer.connections[port]
 	if conn != nil {
-		msg := Message{"askForPeers", nil, peer.Port, account.SignedTransaction{}, block.Block{}}
+		msg := Message{Action: "AskForPeers", SendingPort: peer.Port}
 		b, err := json.Marshal(msg)
 		if err != nil {
 			fmt.Println("Error marshalling message:", err)
@@ -219,6 +222,7 @@ func (peer *Peer) StartNewNetwork() {
 		fmt.Println(err)
 		return
 	}
+	peer.open = true
 	defer listener.Close()
 
 	for {
@@ -233,13 +237,32 @@ func (peer *Peer) StartNewNetwork() {
 }
 
 func (peer *Peer) sendPeersToNewPeer(conn net.Conn) {
-	msg1 := Message{"peers", peer.getPorts(), peer.Port, account.SignedTransaction{}, block.Block{}}
+	msg1 := Message{Action: "peers", Ports: peer.getPorts(), SendingPort: peer.Port}
 
 	b, err := json.Marshal(msg1)
 	if err != nil {
 		fmt.Println("Error marshalling ports:", err)
 	}
 	conn.Write(b)
+}
+
+func (peer *Peer) SendBlockToPeers(lotteryBlock block.Lottery) {
+	msg := Message{Action: "block", SendingPort: peer.Port, LotteryBlock: lotteryBlock}
+	b, err := json.Marshal(msg)
+	if err != nil {
+		fmt.Println("Error marshalling message:", err)
+		return
+	}
+	for _, conn := range peer.connections {
+		if conn != nil {
+			_, err = conn.Write(b)
+			if err != nil {
+				fmt.Println("Error writing to connection:", err)
+				continue
+			}
+		}
+	}
+	fmt.Println("Block sent to peers")
 }
 
 func (peer *Peer) KnownPeer(port int) bool {

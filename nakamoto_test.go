@@ -167,14 +167,64 @@ func createBlock(accounts []*account.Account, prevHash string) block.Block {
 
 func Test(t *testing.T) {
 
+	ip := GetOutboundIP2()
+	fmt.Println("IP: ", ip.String())
+	// Generate random ports for peers
+	for i := 0; i < 10; i++ {
+		time.Sleep(50 * time.Millisecond)
+		port, err := GetFreePort()
+		if err != nil {
+			log.Fatalf("Failed to get a free port: %v", err)
+		}
+		ports = append(ports, port)
+	}
+
+	fmt.Println("ports: ", ports)
+
+	//create 10 peers and set their ledger to genesisLedger
+	genesisLedger := account.MakeLedger()
+	fmt.Println("genesisLedger: ", genesisLedger)
+	// Create 10 accounts
+	for i := 0; i < 10; i++ {
+
+		// Create a new account
+		accounts[i] = account.MakeAccount()
+		// Add the account to the ledger
+		genesisLedger.Accounts[rsa.EncodePublicKey(accounts[i].Pk)] = 1000000
+	}
+
+	for i := 0; i < 10; i++ {
+		peers[i] = peer.NewPeer(ports[i], genesisLedger, "Peer"+strconv.Itoa(i), ip.String(), accounts[i])
+	}
+
+	// Start a new network
+	for i := 0; i < 10; i++ {
+		go peers[i].StartNewNetwork()
+		fmt.Println("Peer ", i, " started a new network")
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	fmt.Println("genesisLedger: ", genesisLedger)
+
+	// Connect all peers
+	// Connect peers to the network
+	for i := 0; i < 10; i++ {
+		go peers[i].Connect(ip.String(), peers[0].Port)
+		fmt.Println("Peer ", i, " connected to peer 0")
+		time.Sleep(500 * time.Millisecond)
+		go peers[i].AskForPeers(peers[0].Port)
+	}
+
+	time.Sleep(1 * time.Second)
+
 	//create transactions, add them to a block and sign the block and then verify the block
 	t.Run("blockVerify", func(t *testing.T) {
 		account1 := account.MakeAccount()
 		account2 := account.MakeAccount()
 		transaction := account.Transaction{ID: "1", From: rsa.EncodePublicKey(account1.Pk), To: rsa.EncodePublicKey(account2.Pk), Amount: 100}
 		signedTransaction := account.SignTransaction(account1.Sk, &transaction)
-		block := block.Block{PrevHash: "0"}
-		block.AddTransaction(&signedTransaction)
+		transactions := []account.SignedTransaction{signedTransaction}
+		block := block.NewBlock(&block.Block{Hash: ""}, transactions, account1.Pk)
 		signedBlock := block.SignBlock(*account1)
 
 		fmt.Println("Block: ", block)
@@ -197,10 +247,8 @@ func Test(t *testing.T) {
 		signedTransaction1 := account.SignTransaction(account1.Sk, &transaction1)
 		signedTransaction2 := account.SignTransaction(account2.Sk, &transaction2)
 		signedTransaction3 := account.SignTransaction(account3.Sk, &transaction3)
-		block := block.Block{PrevHash: "0"}
-		block.AddTransaction(&signedTransaction1)
-		block.AddTransaction(&signedTransaction2)
-		block.AddTransaction(&signedTransaction3)
+		transactions := []account.SignedTransaction{signedTransaction1, signedTransaction2, signedTransaction3}
+		block := block.NewBlock(&block.Block{Hash: ""}, transactions, account1.Pk)
 
 		if !block.VerifyBlockTransactions() {
 			t.Errorf("Block verification failed")
@@ -218,10 +266,8 @@ func Test(t *testing.T) {
 		signedTransaction1 := account.SignTransaction(account1.Sk, &transaction1)
 		signedTransaction2 := account.SignTransaction(account1.Sk, &transaction2)
 		signedTransaction3 := account.SignTransaction(account3.Sk, &transaction3)
-		block := block.Block{PrevHash: "0"}
-		block.AddTransaction(&signedTransaction1)
-		block.AddTransaction(&signedTransaction2)
-		block.AddTransaction(&signedTransaction3)
+		transactions := []account.SignedTransaction{signedTransaction1, signedTransaction2, signedTransaction3}
+		block := block.NewBlock(&block.Block{Hash: ""}, transactions, account1.Pk)
 
 		if block.VerifyBlockTransactions() {
 			t.Errorf("Block verification succeeded with an invalid Transaction")
@@ -231,8 +277,8 @@ func Test(t *testing.T) {
 	//test that height of a block is correctly set
 	t.Run("blockHeight", func(t *testing.T) {
 		account1 := account.MakeAccount()
-		block1 := block.NewBlock(nil, account1.Pk)
-		block2 := block.NewBlock(block1, account1.Pk)
+		block1 := block.NewBlock(nil, make([]account.SignedTransaction, 0), account1.Pk)
+		block2 := block.NewBlock(block1, make([]account.SignedTransaction, 0), account1.Pk)
 
 		if block2.Height != 2 {
 			t.Errorf("Block height is not correctly set")
@@ -242,8 +288,8 @@ func Test(t *testing.T) {
 	//test that we can compare two heights of blocks
 	t.Run("blockHeightComparison", func(t *testing.T) {
 		account1 := account.MakeAccount()
-		block1 := block.NewBlock(nil, account1.Pk)
-		block2 := block.NewBlock(block1, account1.Pk)
+		block1 := block.NewBlock(nil, make([]account.SignedTransaction, 0), account1.Pk)
+		block2 := block.NewBlock(block1, make([]account.SignedTransaction, 0), account1.Pk)
 
 		if block1.Height >= block2.Height {
 			t.Errorf("Block height comparison failed")
@@ -254,9 +300,9 @@ func Test(t *testing.T) {
 	t.Run("chainHeadUpdate", func(t *testing.T) {
 		ledger1 := account.MakeLedger()
 		account1 := account.MakeAccount()
-		block1 := block.NewBlock(nil, account1.Pk)
-		block2 := block.NewBlock(block1, account1.Pk)
-		block3 := block.NewBlock(block2, account1.Pk)
+		block1 := block.NewBlock(nil, make([]account.SignedTransaction, 0), account1.Pk)
+		block2 := block.NewBlock(block1, make([]account.SignedTransaction, 0), account1.Pk)
+		block3 := block.NewBlock(block2, make([]account.SignedTransaction, 0), account1.Pk)
 
 		blockchain := block.NewBlockchain(ledger1)
 		blockchain.AddBlock(*block1)
@@ -272,13 +318,13 @@ func Test(t *testing.T) {
 	t.Run("chainHeadUpdateLongerChain", func(t *testing.T) {
 		ledger1 := account.MakeLedger()
 		account1 := account.MakeAccount()
-		block1 := block.NewBlock(nil, account1.Pk)
-		block2 := block.NewBlock(block1, account1.Pk)
-		block3 := block.NewBlock(block2, account1.Pk)
-		block4 := block.NewBlock(block3, account1.Pk)
+		block1 := block.NewBlock(nil, make([]account.SignedTransaction, 0), account1.Pk)
+		block2 := block.NewBlock(block1, make([]account.SignedTransaction, 0), account1.Pk)
+		block3 := block.NewBlock(block2, make([]account.SignedTransaction, 0), account1.Pk)
+		block4 := block.NewBlock(block3, make([]account.SignedTransaction, 0), account1.Pk)
 
-		block5 := block.NewBlock(block1, account1.Pk)
-		block6 := block.NewBlock(block5, account1.Pk)
+		block5 := block.NewBlock(block1, make([]account.SignedTransaction, 0), account1.Pk)
+		block6 := block.NewBlock(block5, make([]account.SignedTransaction, 0), account1.Pk)
 
 		blockchain := block.NewBlockchain(ledger1)
 		blockchain.AddBlock(*block1)
@@ -310,10 +356,8 @@ func Test(t *testing.T) {
 		signedTransaction1 := account.SignTransaction(accounts[1].Sk, &transaction1)
 		signedTransaction2 := account.SignTransaction(accounts[2].Sk, &transaction2)
 		signedTransaction3 := account.SignTransaction(accounts[3].Sk, &transaction3)
-		block1 := block.NewBlock(&block.Block{Hash: ""}, accounts[1].Pk)
-		block1.AddTransaction(&signedTransaction1)
-		block1.AddTransaction(&signedTransaction2)
-		block1.AddTransaction(&signedTransaction3)
+		transactions := []account.SignedTransaction{signedTransaction1, signedTransaction2, signedTransaction3}
+		block1 := block.NewBlock(&block.Block{Hash: ""}, transactions, accounts[1].Pk)
 
 		blockchain := block.NewBlockchain(genesisLedger)
 
@@ -342,33 +386,29 @@ func Test(t *testing.T) {
 		transaction2 := account.Transaction{ID: "2", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[2].Pk), Amount: 30}
 		signedTransaction1 := account.SignTransaction(accounts[0].Sk, &transaction1)
 		signedTransaction2 := account.SignTransaction(accounts[1].Sk, &transaction2)
-		block1 := block.NewBlock(&block.Block{Hash: ""}, accounts[1].Pk)
-		block1.AddTransaction(&signedTransaction1)
-		block1.AddTransaction(&signedTransaction2)
+		transactions := []account.SignedTransaction{signedTransaction1, signedTransaction2}
+		block1 := block.NewBlock(&block.Block{Hash: ""}, transactions, accounts[1].Pk)
 
 		transaction1 = account.Transaction{ID: "3", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 20}
 		transaction2 = account.Transaction{ID: "4", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[0].Pk), Amount: 30}
 		signedTransaction1 = account.SignTransaction(accounts[0].Sk, &transaction1)
 		signedTransaction2 = account.SignTransaction(accounts[1].Sk, &transaction2)
-		block2 := block.NewBlock(block1, accounts[1].Pk)
-		block2.AddTransaction(&signedTransaction1)
-		block2.AddTransaction(&signedTransaction2)
+		transactions = []account.SignedTransaction{signedTransaction1, signedTransaction2}
+		block2 := block.NewBlock(block1, transactions, accounts[1].Pk)
 
 		transaction1 = account.Transaction{ID: "5", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 30}
 		transaction2 = account.Transaction{ID: "6", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[0].Pk), Amount: 10}
 		signedTransaction1 = account.SignTransaction(accounts[0].Sk, &transaction1)
 		signedTransaction2 = account.SignTransaction(accounts[1].Sk, &transaction2)
-		block3 := block.NewBlock(block1, accounts[1].Pk)
-		block3.AddTransaction(&signedTransaction1)
-		block3.AddTransaction(&signedTransaction2)
+		transactions = []account.SignedTransaction{signedTransaction1, signedTransaction2}
+		block3 := block.NewBlock(block1, transactions, accounts[1].Pk)
 
 		transaction1 = account.Transaction{ID: "7", From: rsa.EncodePublicKey(accounts[0].Pk), To: rsa.EncodePublicKey(accounts[1].Pk), Amount: 10}
 		transaction2 = account.Transaction{ID: "8", From: rsa.EncodePublicKey(accounts[1].Pk), To: rsa.EncodePublicKey(accounts[0].Pk), Amount: 20}
 		signedTransaction1 = account.SignTransaction(accounts[0].Sk, &transaction1)
 		signedTransaction2 = account.SignTransaction(accounts[1].Sk, &transaction2)
-		block4 := block.NewBlock(block3, accounts[1].Pk)
-		block4.AddTransaction(&signedTransaction1)
-		block4.AddTransaction(&signedTransaction2)
+		transactions = []account.SignedTransaction{signedTransaction1, signedTransaction2}
+		block4 := block.NewBlock(block3, transactions, accounts[1].Pk)
 
 		blockchain.AddBlock(*block1)
 		blockchain.AddBlock(*block2)
@@ -382,4 +422,16 @@ func Test(t *testing.T) {
 		}
 
 	})
+
+	//test that we can send a block to peers
+	t.Run("sendEmptyBlockToPeers", func(t *testing.T) {
+		block1 := createBlock(accounts, "")
+		// create lotteryBlock
+		lotteryBlock := block.Lottery{Block: &block1, Slot: 1, Pk: accounts[0].Pk, Draw: 1}
+		peers[0].SendBlockToPeers(lotteryBlock)
+		if len(peers[1].Blockchain.Blocks) == 0 {
+			t.Errorf("Block not received by peer")
+		}
+	})
+
 }

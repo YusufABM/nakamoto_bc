@@ -30,6 +30,14 @@ type Blockchain struct {
 	ChainHead     Block
 }
 
+type Lottery struct {
+	Block     *Block
+	Slot      int
+	Pk        rsa.PublicKey
+	Draw      int
+	signature []byte
+}
+
 // NewBlockchain creates a new instance of Blockchain with a genesis block where 10 accounts are created with 1000000 in each
 func NewBlockchain(ledger *account.Ledger) *Blockchain {
 	blockchain := new(Blockchain)
@@ -40,11 +48,11 @@ func NewBlockchain(ledger *account.Ledger) *Blockchain {
 	return blockchain
 }
 
-func NewBlock(parent *Block, pk rsa.PublicKey) *Block {
+func NewBlock(parent *Block, transactions []account.SignedTransaction, pk rsa.PublicKey) *Block {
 	block := new(Block)
 
 	parentHash := ""
-	block.Transactions = make([]account.SignedTransaction, 0)
+	block.Transactions = transactions
 	block.timeStamp = time.Now()
 	if parent != nil {
 		block.Height = parent.Height + 1
@@ -128,4 +136,15 @@ func (block *Block) VerifyBlockTransactions() bool {
 		}
 	}
 	return true
+}
+
+// processes a block taken as a parameter
+func (blockchain *Blockchain) ProcessLotteryBlock(lottery Lottery) {
+	verified := lottery.Block.VerifyBlock(lottery.Pk, lottery.signature)
+	if verified {
+		blockchain.AddBlock(*lottery.Block)
+		fmt.Println("Block verified")
+	} else {
+		fmt.Println("Block not verified")
+	}
 }
