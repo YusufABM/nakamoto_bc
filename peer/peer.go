@@ -103,7 +103,7 @@ func (peer *Peer) HandleConnection(conn net.Conn) {
 	defer conn.Close()
 	for {
 		var msg Message
-		ReceivedMessage := make([]byte, 8192)
+		ReceivedMessage := make([]byte, 8192*64)
 		n, errcon := conn.Read(ReceivedMessage)
 		if errcon != nil {
 			fmt.Println("Error reading message:", errcon)
@@ -185,6 +185,7 @@ func (peer *Peer) handleMessage(msg Message) {
 			if tickets > block.HARDNESS {
 				fmt.Println("received Lottery Block created")
 				peer.Blockchain.ProcessLotteryBlock(msg.LotteryBlock)
+				peer.Blockchain.AddMinerReward(msg.LotteryBlock)
 				peer.DeleteTransactions()
 			} else {
 				fmt.Println("Block not created invalid tickets")
@@ -234,7 +235,9 @@ func (p *Peer) lottery() {
 					fmt.Println("Peer:", p.name)
 					fmt.Println("time:", t)
 					fmt.Println("slot:", p.CurrenetSlotNum())
-					winnerBlock := block.NewBlock(&p.Blockchain.ChainHead, p.Transactions, p.Account.Pk)
+					transactionsToSend := int(math.Min(float64(p.Blockchain.BlockSize), float64(len(p.Transactions))))
+					winnerTransactions := p.Transactions[transactionsToSend:]
+					winnerBlock := block.NewBlock(&p.Blockchain.ChainHead, winnerTransactions, p.Account.Pk)
 					lotteryBlock := block.NewLotteryBlock(*winnerBlock, p.Account.Pk, p.Account.Sk, slotNum, draw)
 					p.SendLottery(*lotteryBlock)
 					p.Blockchain.ProcessLotteryBlock(*lotteryBlock)
@@ -273,14 +276,7 @@ func (peer *Peer) FloodTransaction(st account.SignedTransaction) {
 // ExecuteTransaction executes a transaction
 // takes a transaction and updates the ledger
 func (peer *Peer) ExecuteTransaction(st account.SignedTransaction) {
-	//fmt.Printf("length of %s 's connections: %d \n", peer.name, len(peer.connections))
-	//fmt.Print(peer.getPorts())
-	//fmt.Printf("from peer %s Executing transaction \n", peer.name)
-	isVerified := account.VerifySignedTransaction(rsa.DecodePublicKey(st.From), &st)
-	if isVerified {
-		peer.Transactions = append(peer.Transactions, st)
-	}
-
+	peer.Transactions = append(peer.Transactions, st)
 }
 
 // delete blocksize transactions

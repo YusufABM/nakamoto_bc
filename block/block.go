@@ -11,7 +11,9 @@ import (
 )
 
 const SLOTLENGTH int = 1
-const HARDNESS int = 890000000000
+const HARDNESS int = 913000000000
+const debugging bool = true
+const BLOCKSIZE int = 40
 
 // Block is a struct that contains the previous hash, the hash, the nonce, the transactions and the timestamp
 type Block struct {
@@ -48,7 +50,7 @@ func NewBlockchain(ledger *account.Ledger, startTime time.Time) *Blockchain {
 	blockchain.Seed = 42
 	blockchain.StartTime = startTime
 	blockchain.Blocks = make(map[string]Block)
-	blockchain.BlockSize = 10
+	blockchain.BlockSize = BLOCKSIZE
 	return blockchain
 }
 
@@ -129,7 +131,6 @@ func (block *Block) HashBlock(key rsa.PublicKey) string {
 func (block *Block) SignBlock(pk rsa.PublicKey, sk rsa.SecretKey) []byte {
 	blockData := rsa.EncodePublicKey(pk) + block.PrevHash + account.EncodeTransactions(block.Transactions) + block.Hash
 	signedMessage := rsa.SignMessage([]byte(blockData), sk)
-	fmt.Println("Block signed")
 	return signedMessage
 }
 
@@ -139,13 +140,16 @@ func (block *Block) VerifyBlock(key rsa.PublicKey, signature []byte) bool {
 	verifiedSignature := rsa.VerifySignature([]byte(blockData), signature, key)
 	validBlockTransactions := block.VerifyBlockTransactions()
 
-	if !verifiedSignature {
-		fmt.Println("Signature not verified")
-	} else if !validBlockTransactions {
-		fmt.Println("Block transactions not verified")
-	} else {
-		fmt.Println("Block verified")
+	if debugging {
+		if !verifiedSignature {
+			fmt.Println("Signature not verified")
+		} else if !validBlockTransactions {
+			fmt.Println("Block transactions not verified")
+		} else {
+			fmt.Println("Block verified")
+		}
 	}
+
 	return verifiedSignature && validBlockTransactions
 }
 
@@ -153,8 +157,11 @@ func (block *Block) VerifyBlock(key rsa.PublicKey, signature []byte) bool {
 func (block *Block) VerifyBlockTransactions() bool {
 	for _, signedTransaction := range block.Transactions {
 		pk := rsa.DecodePublicKey(signedTransaction.From)
-		if !account.VerifySignedTransaction(pk, &signedTransaction) {
+		isStValid := account.VerifySignedTransaction(pk, &signedTransaction)
+		if !isStValid {
+			fmt.Println("reveived a transaction with an invalid signature")
 			return false
+
 		}
 	}
 	return true
@@ -165,8 +172,13 @@ func (blockchain *Blockchain) ProcessLotteryBlock(lottery Lottery) {
 	verified := lottery.Block.VerifyBlock(lottery.Pk, lottery.Signature)
 	if verified {
 		blockchain.AddBlock(*lottery.Block)
-		fmt.Println("Lottery Block verified")
-	} else {
-		fmt.Println("Lottery Block not verified")
 	}
+}
+
+// add 10 AU plus 1 AU per transaction to the miner
+func (blockchain *Blockchain) AddMinerReward(Lottery Lottery) {
+	miner := Lottery.Pk
+	transactions := len(Lottery.Block.Transactions)
+	amount := transactions + 10
+	blockchain.Ledger.Accounts[rsa.EncodePublicKey(miner)] += amount
 }

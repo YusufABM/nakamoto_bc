@@ -96,7 +96,6 @@ func VerifySignature(message []byte, signature []byte, pk PublicKey) bool {
 	hm := new(big.Int).SetBytes(hashedMessage)
 
 	if verificationMessage.Cmp(hm) == 0 {
-		fmt.Println("Signature is valid")
 		return true
 	}
 

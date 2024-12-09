@@ -69,6 +69,49 @@ func randomTransaction(peer *peer.Peer, counter *int) {
 	peer.FloodTransaction(st)
 }
 
+// Random transaction generator
+func randomMaliciousTransaction(peer *peer.Peer, counter *int) {
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	randomAmount := rand.Intn(1000)
+	malicousIntent := rand.Intn(4)
+	fromNumber := rand.Intn(len(accounts))
+	toNumber := rand.Intn(len(accounts))
+	for fromNumber == toNumber {
+		toNumber = rand.Intn(len(accounts))
+	}
+
+	FromAccount := accounts[fromNumber]
+	ToAccount := accounts[toNumber]
+
+	pkFrom := rsa.EncodePublicKey(FromAccount.Pk)
+	pkTo := rsa.EncodePublicKey(ToAccount.Pk)
+
+	signingSk := FromAccount.Sk
+
+	//switch case to determine the malicious intent
+	switch malicousIntent {
+	case 0: //send a transaction with a negative amount
+		randomAmount = -1
+		fmt.Println("sending a transaction with a negative amount")
+	case 1: //send a transaction with a 0 amount
+		randomAmount = 0
+		fmt.Println("sending a transaction with a 0 amount")
+	case 2: //send a transaction with an invalid signature
+		signingSk = ToAccount.Sk
+		fmt.Println("sending a transaction with an invalid signature")
+	case 3: //send a transaction which will cause the account to go into negative balance
+		randomAmount = 10000000
+		fmt.Println("sending a transaction which will cause the account to go into negative balance")
+	}
+
+	ac := account.Transaction{ID: strconv.Itoa(*counter), From: pkFrom, To: pkTo, Amount: randomAmount}
+	st := account.SignTransaction(signingSk, &ac)
+	peer.ExecuteTransaction(st)
+	*counter++
+	peer.FloodTransaction(st)
+}
+
 // Prints the ledgers of all peers
 func PrintLedgers(peers []*peer.Peer) {
 	for i, peer := range peers {
@@ -88,31 +131,6 @@ func PrintLedgers(peers []*peer.Peer) {
 		}
 		fmt.Println()
 	}
-}
-
-// create a block with random signedTransactions and return the block
-func createBlock(accounts []*account.Account, prevHash string) block.Block {
-	block := block.Block{PrevHash: prevHash}
-	rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < 2; i++ {
-		fromNumber := rand.Intn(len(accounts))
-		toNumber := rand.Intn(len(accounts))
-		for fromNumber == toNumber {
-			toNumber = rand.Intn(len(accounts))
-		}
-
-		FromAccount := accounts[fromNumber]
-		ToAccount := accounts[toNumber]
-
-		pkFrom := rsa.EncodePublicKey(FromAccount.Pk)
-		pkTo := rsa.EncodePublicKey(ToAccount.Pk)
-
-		randomAmount := rand.Intn(10)
-		ac := account.Transaction{ID: strconv.Itoa(i), From: pkFrom, To: pkTo, Amount: randomAmount}
-		st := account.SignTransaction(FromAccount.Sk, &ac)
-		block.AddTransaction(&st)
-	}
-	return block
 }
 
 func Test(t *testing.T) {
@@ -140,7 +158,7 @@ func Test(t *testing.T) {
 		// Create a new account
 		accounts[i] = account.MakeAccount()
 		// Add the account to the ledger
-		genesisLedger.Accounts[rsa.EncodePublicKey(accounts[i].Pk)] = 100
+		genesisLedger.Accounts[rsa.EncodePublicKey(accounts[i].Pk)] = 1000000
 	}
 	genesisTime := time.Now()
 	for i := 0; i < 10; i++ {
@@ -423,9 +441,26 @@ func Test(t *testing.T) {
 		}
 	})
 
-	//test the output of lottery
-	t.Run("lotteryOutput", func(t *testing.T) {
+	//test that we can flood random transactions, that they are received by peers and that they are processed.
+	t.Run("floodRandomMessages", func(t *testing.T) {
+		time.Sleep(6 * time.Second)
+		for i := 0; i < 10; i++ {
+			for j := 0; j < 20; j++ {
+				//create a random number between 0 and 10
+				rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+				malicious := rand.Intn(100)
+				if malicious < 10 {
+					go randomMaliciousTransaction(peers[i], &counter)
+				} else {
+					go randomTransaction(peers[i], &counter)
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
 		time.Sleep(50 * time.Second)
+		if len(peers[1].Transactions) == 0 {
+			t.Errorf("Transaction not received by peer")
+		}
 	})
 
 }
