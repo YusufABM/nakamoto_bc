@@ -11,7 +11,7 @@ import (
 )
 
 const SLOTLENGTH int = 1
-const HARDNESS int = 251000000
+const HARDNESS int = 890000000000
 
 // Block is a struct that contains the previous hash, the hash, the nonce, the transactions and the timestamp
 type Block struct {
@@ -34,9 +34,9 @@ type Blockchain struct {
 
 type Lottery struct {
 	Block     *Block
-	Slot      int
+	Slot      []byte
 	Pk        rsa.PublicKey
-	Draw      int
+	Draw      []byte
 	Signature []byte
 }
 
@@ -52,13 +52,14 @@ func NewBlockchain(ledger *account.Ledger, startTime time.Time) *Blockchain {
 	return blockchain
 }
 
-func NewLotteryBlock(block Block, pk rsa.PublicKey, sk rsa.SecretKey, slotNum []byte) *Lottery {
+func NewLotteryBlock(block Block, pk rsa.PublicKey, sk rsa.SecretKey, slotNum []byte, draw []byte) *Lottery {
 	lottery := new(Lottery)
 	lottery.Block = &block
 	lottery.Pk = pk
 	//sets lottery.slot to the entire slotNum array
-	lottery.Slot = int(slotNum[0])
+	lottery.Slot = slotNum
 	lottery.Signature = block.SignBlock(pk, sk)
+	lottery.Draw = draw
 	return lottery
 }
 

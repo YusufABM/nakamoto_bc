@@ -4,9 +4,12 @@ import (
 	"HAND_IN_2/account"
 	"HAND_IN_2/block"
 	"HAND_IN_2/rsa"
+	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"sync"
@@ -165,14 +168,20 @@ func (peer *Peer) handleMessage(msg Message) {
 		peer.Blockchain.ProcessLotteryBlock(lotteryBlock)
 	}
 	if msg.Action == "lottery" {
-		verifyDraw := peer.verifyDraw(msg.LotteryBlock.Signature, []byte(strconv.Itoa(msg.LotteryBlock.Slot)), msg.LotteryBlock.Pk)
-		slotNum := []byte(strconv.Itoa(msg.LotteryBlock.Slot))
 		pk := msg.LotteryBlock.Pk
+		slotNum := msg.LotteryBlock.Slot
+		draw := msg.LotteryBlock.Draw
+		verifyDraw := peer.verifyDraw(draw, slotNum, pk)
 
 		if verifyDraw {
-			hash := peer.HashTicket(slotNum, pk, msg.LotteryBlock.Signature)
+			hash := peer.HashTicket(slotNum, pk, draw)
 			stake := peer.Blockchain.GenesisLedger.Accounts[rsa.EncodePublicKey(pk)]
-			tickets := hash * stake
+			var num uint64
+			err := binary.Read(bytes.NewReader(hash), binary.BigEndian, &num)
+			if err != nil {
+				fmt.Println("binary.Read failed:", err)
+			}
+			tickets := int(math.Abs(float64(int(num)*stake))) / 10000000
 			if tickets > block.HARDNESS {
 				fmt.Println("received Lottery Block created")
 				peer.Blockchain.ProcessLotteryBlock(msg.LotteryBlock)
@@ -188,14 +197,11 @@ func (peer *Peer) handleMessage(msg Message) {
 
 func (p *Peer) verifyDraw(signature []byte, slot []byte, pk rsa.PublicKey) bool {
 	data := "lottery" + strconv.Itoa(p.Blockchain.Seed) + string(slot)
-	hash := sha256.New()
-	hash.Write([]byte(data))
-	hashedMessage := hash.Sum(nil)
-	return rsa.VerifySignature(hashedMessage, signature, pk)
+	return rsa.VerifySignature([]byte(data), signature, pk)
 }
 
 func (p *Peer) lottery() {
-
+	time.Sleep(5 * time.Second)
 	// Create a ticker that triggers every second
 	ticker := time.NewTicker(time.Duration(block.SLOTLENGTH) * time.Second)
 	defer ticker.Stop() // Clean up the ticker when the program exits
@@ -212,21 +218,28 @@ func (p *Peer) lottery() {
 			case t := <-ticker.C:
 				// Code to run every second
 				slotNum := []byte(strconv.Itoa(p.CurrenetSlotNum()))
-				ticket := p.HashTicket(slotNum, p.Account.Pk, p.signDraw(slotNum))
-				if ticket > block.HARDNESS {
+				draw := p.signDraw(slotNum)
+				hash := p.HashTicket(slotNum, p.Account.Pk, draw)
+				stake := p.Blockchain.GenesisLedger.Accounts[rsa.EncodePublicKey(p.Account.Pk)]
+				var num uint64
+				err := binary.Read(bytes.NewReader(hash), binary.BigEndian, &num)
+				if err != nil {
+					fmt.Println("binary.Read failed:", err)
+				}
+				tickets := int(math.Abs(float64(int(num)*stake))) / 10000000
+
+				if tickets > block.HARDNESS {
 					fmt.Println("Block created")
-					fmt.Println("Ticket:", ticket)
+					fmt.Println("Ticket:", tickets)
 					fmt.Println("Peer:", p.name)
+					fmt.Println("time:", t)
 					fmt.Println("slot:", p.CurrenetSlotNum())
 					winnerBlock := block.NewBlock(&p.Blockchain.ChainHead, p.Transactions, p.Account.Pk)
-					lotteryBlock := block.NewLotteryBlock(*winnerBlock, p.Account.Pk, p.Account.Sk, slotNum)
+					lotteryBlock := block.NewLotteryBlock(*winnerBlock, p.Account.Pk, p.Account.Sk, slotNum, draw)
 					p.SendLottery(*lotteryBlock)
 					p.Blockchain.ProcessLotteryBlock(*lotteryBlock)
 					p.DeleteTransactions()
 				}
-				fmt.Println("Lottery ticket:", ticket)
-				fmt.Println("Time:", t)
-
 			}
 		}
 	}()
@@ -300,17 +313,19 @@ func (peer *Peer) AskForPeers(port int) {
 
 func (p *Peer) signDraw(slot []byte) []byte {
 	data := "lottery" + strconv.Itoa(p.Blockchain.Seed) + string(slot)
+
 	return rsa.SignMessage([]byte(data), p.Account.Sk)
 }
 
-func (p *Peer) HashTicket(slotNum []byte, pk rsa.PublicKey, signature []byte) int {
+func (p *Peer) HashTicket(slotNum []byte, pk rsa.PublicKey, signature []byte) []byte {
 
 	data := strconv.Itoa(p.Blockchain.Seed) + string(slotNum) + string(rsa.EncodePublicKey(pk)) + string(signature)
 	//hash the data
 	hash := sha256.New()
 	hash.Write([]byte(data))
 	hashedMessage := hash.Sum(nil)
-	return int(hashedMessage[0]) * 1000000
+
+	return hashedMessage
 }
 
 // GenerateLotterySignature creates a signature for a slot
@@ -324,8 +339,6 @@ func (p *Peer) GenerateLotterySignature() []byte {
 func (peer *Peer) CurrenetSlotNum() int {
 	GenTime := peer.Blockchain.StartTime
 	elapsed := time.Since(GenTime).Seconds()
-	fmt.Println("Elapsed time", elapsed)
-	fmt.Println("Slot num", int(elapsed)/SLOTLENGTH)
 	return int(elapsed) / SLOTLENGTH
 }
 

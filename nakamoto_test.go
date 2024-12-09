@@ -378,7 +378,7 @@ func Test(t *testing.T) {
 		transactions := []account.SignedTransaction{}
 		block1 := block.NewBlock(&block.Block{Hash: ""}, transactions, accounts[0].Pk)
 		// create lotteryBlock
-		lotteryBlock := block.NewLotteryBlock(*block1, accounts[0].Pk, accounts[0].Sk, []byte{1})
+		lotteryBlock := block.NewLotteryBlock(*block1, accounts[0].Pk, accounts[0].Sk, []byte{1}, []byte{1})
 		initialState := block1.VerifyBlock(accounts[0].Pk, lotteryBlock.Signature)
 		if !initialState {
 			t.Errorf("Block not signed correctly")
@@ -403,7 +403,7 @@ func Test(t *testing.T) {
 		fmt.Println(peers[1].Blockchain.Ledger.Accounts)
 
 		// create lotteryBlock
-		lotteryBlock := block.Lottery{Block: block1, Slot: 1, Pk: accounts[0].Pk, Draw: 1, Signature: block1.SignBlock(accounts[0].Pk, accounts[0].Sk)}
+		lotteryBlock := block.Lottery{Block: block1, Slot: []byte{1}, Pk: accounts[0].Pk, Draw: []byte{1}, Signature: block1.SignBlock(accounts[0].Pk, accounts[0].Sk)}
 		peers[0].SendBlockToPeers(lotteryBlock)
 		time.Sleep(3 * time.Second)
 		fmt.Println(peers[1].Blockchain.Ledger.Accounts)
