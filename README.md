@@ -104,3 +104,11 @@ Exercise 4.6 and 5.1
 
 - [] **Transaction Rejection (Optional)**
   - [ ] Discuss how eventual consistency is affected if transactions that reduce an account's balance below 0 are rejected.
+
+
+### Nakamoto style blockchain
+
+- [] **Testing**
+  -[] teste at en invalid transaktion bliver rejected
+  -[] teste længde på blocks
+  -[] teste at vi kan lave rollbacks

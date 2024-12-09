@@ -20,6 +20,14 @@ type Transaction struct {
 	Amount int
 }
 
+type SignedTransaction struct {
+	ID        string // Any string
+	From      string // A verifaction key coded as a string
+	To        string // A verifaction key coded as a string
+	Amount    int    // Amount to transfer
+	Signature string // Potential signature coded as string
+}
+
 // Ledger is a map of account names to balances
 // sync.Mutex = It is safe for concurrent use
 type Ledger struct {
@@ -35,6 +43,34 @@ func MakeLedger() *Ledger {
 	return Ledger
 }
 
+func (l *Ledger) DeepCopy() *Ledger {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	newLedger := &Ledger{
+		Accounts: make(map[string]int),
+	}
+
+	for k, v := range l.Accounts {
+		newLedger.Accounts[k] = v
+	}
+
+	return newLedger
+}
+
+// creates 10 accounts with 1000000 in each
+func CreateGenesisBlocks() {
+	for i := 0; i < 10; i++ {
+		// Create genesis block
+		// Create a new ledger
+		ledger := MakeLedger()
+		// Create a new account
+		account := MakeAccount()
+		// Add the account to the ledger
+		ledger.Accounts[rsa.EncodePublicKey(account.Pk)] = 1000000
+	}
+}
+
 func MakeAccount() *Account {
 	Account := new(Account)
 	pk, sk, err := rsa.Keygen(1024)
@@ -44,14 +80,6 @@ func MakeAccount() *Account {
 	Account.Pk = pk
 	Account.Sk = sk
 	return Account
-}
-
-type SignedTransaction struct {
-	ID        string // Any string
-	From      string // A verifaction key coded as a string
-	To        string // A verifaction key coded as a string
-	Amount    int    // Amount to transfer
-	Signature string // Potential signature coded as string
 }
 
 func (l *Ledger) ProcessSignedTransaction(st *SignedTransaction) {
@@ -67,8 +95,14 @@ func (l *Ledger) ProcessSignedTransaction(st *SignedTransaction) {
 	//fmt.Println("decoded pk: ", pk)
 	validSignature := VerifySignedTransaction(pk, st)
 	if validSignature {
+		if l.Accounts[st.From] < st.Amount {
+			fmt.Println("Not enough money in account")
+			fmt.Println("From: ", st.From)
+			fmt.Println("Amount: ", st.Amount)
+			return
+		}
 		l.Accounts[st.From] -= st.Amount
-		l.Accounts[st.To] += st.Amount
+		l.Accounts[st.To] += st.Amount - 1
 	} else {
 		fmt.Println("Invalid signature")
 		//fmt.Println(st.Signature)
@@ -98,10 +132,29 @@ func SignTransaction(sk rsa.SecretKey, t *Transaction) SignedTransaction {
 
 func VerifySignedTransaction(pk rsa.PublicKey, st *SignedTransaction) bool {
 	message := st.ID + st.From + st.To + string(st.Amount)
+	if st.Amount%1 != 0 || st.Amount < 1 {
+		fmt.Println("Amount is not valid")
+		return false
+	}
 	decodedSignature, err := base64.StdEncoding.DecodeString(st.Signature)
 	if err != nil {
 		fmt.Println("Error decoding signature:", err)
 		return false
 	}
 	return rsa.VerifySignature([]byte(message), decodedSignature, pk)
+}
+
+// encode signed transaction to string
+func EncodeSignedTransaction(st SignedTransaction) string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(st.ID + st.From + st.To + string(st.Amount) + st.Signature))
+	return encoded
+}
+
+// encodes a list of transactions to a string
+func EncodeTransactions(transactions []SignedTransaction) string {
+	encoded := ""
+	for _, t := range transactions {
+		encoded += EncodeSignedTransaction(t)
+	}
+	return encoded
 }
