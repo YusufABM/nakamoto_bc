@@ -108,8 +108,8 @@ func (blockchain *Blockchain) switchToChain(block Block) {
 	}
 }
 
-func (blockchain *Blockchain) addTransactionsToLedger(signedTransaction []account.SignedTransaction) {
-	for _, signedTransaction := range signedTransaction {
+func (blockchain *Blockchain) addTransactionsToLedger(signedTransactions []account.SignedTransaction) {
+	for _, signedTransaction := range signedTransactions {
 		blockchain.Ledger.ProcessSignedTransaction(&signedTransaction)
 	}
 }

@@ -70,11 +70,14 @@ func randomTransaction(peer *peer.Peer, counter *int) {
 }
 
 // Random transaction generator
-func randomMaliciousTransaction(peer *peer.Peer, counter *int) {
+func randomMaliciousTransaction(peer *peer.Peer, counter *int, maliciousIntentSpecific int) {
 	rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	randomAmount := rand.Intn(1000)
 	malicousIntent := rand.Intn(4)
+	if maliciousIntentSpecific < 5 {
+		malicousIntent = maliciousIntentSpecific
+	}
 	fromNumber := rand.Intn(len(accounts))
 	toNumber := rand.Intn(len(accounts))
 	for fromNumber == toNumber {
@@ -442,6 +445,7 @@ func Test(t *testing.T) {
 	})
 
 	//test that we can flood random transactions, that they are received by peers and that they are processed.
+
 	t.Run("floodRandomMessages", func(t *testing.T) {
 		time.Sleep(6 * time.Second)
 		for i := 0; i < 10; i++ {
@@ -450,9 +454,9 @@ func Test(t *testing.T) {
 				rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 				malicious := rand.Intn(100)
 				if malicious < 10 {
-					go randomMaliciousTransaction(peers[i], &counter)
+					randomMaliciousTransaction(peers[i], &counter, 5)
 				} else {
-					go randomTransaction(peers[i], &counter)
+					randomTransaction(peers[i], &counter)
 				}
 				time.Sleep(200 * time.Millisecond)
 			}
@@ -460,6 +464,104 @@ func Test(t *testing.T) {
 		time.Sleep(50 * time.Second)
 		if len(peers[1].Transactions) == 0 {
 			t.Errorf("Transaction not received by peer")
+		}
+	})
+
+	t.Run("floodRandomMessagesNegativeAmount", func(t *testing.T) {
+		time.Sleep(6 * time.Second)
+		for i := 0; i < 10; i++ {
+			for j := 0; j < 20; j++ {
+				//create a random number between 0 and 10
+				rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+				malicious := rand.Intn(100)
+				if malicious < 10 {
+					randomMaliciousTransaction(peers[i], &counter, 0)
+				} else {
+					randomTransaction(peers[i], &counter)
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
+		time.Sleep(50 * time.Second)
+		if len(peers[1].Transactions) == 0 {
+			t.Errorf("Transaction not received by peer")
+		}
+	})
+
+	t.Run("floodRandomMessages0Amount", func(t *testing.T) {
+		time.Sleep(6 * time.Second)
+		for i := 0; i < 10; i++ {
+			for j := 0; j < 20; j++ {
+				//create a random number between 0 and 10
+				rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+				malicious := rand.Intn(100)
+				if malicious < 5 {
+					randomMaliciousTransaction(peers[i], &counter, 1)
+				} else {
+					randomTransaction(peers[i], &counter)
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
+		time.Sleep(50 * time.Second)
+		if len(peers[1].Transactions) == 0 {
+			t.Errorf("Transaction not received by peer")
+		}
+	})
+
+	t.Run("floodRandomMessagesNegativeAccount", func(t *testing.T) {
+		time.Sleep(6 * time.Second)
+		for i := 0; i < 10; i++ {
+			for j := 0; j < 20; j++ {
+				//create a random number between 0 and 10
+				rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+				malicious := rand.Intn(100)
+				if malicious < 5 {
+					randomMaliciousTransaction(peers[i], &counter, 3)
+				} else {
+					randomTransaction(peers[i], &counter)
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
+		time.Sleep(50 * time.Second)
+		if len(peers[1].Transactions) == 0 {
+			t.Errorf("Transaction not received by peer")
+		}
+	})
+
+	t.Run("floodRandomMessagesInvalidSignature", func(t *testing.T) {
+		time.Sleep(6 * time.Second)
+		for i := 0; i < 10; i++ {
+			for j := 0; j < 20; j++ {
+				//create a random number between 0 and 10
+				rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+				malicious := rand.Intn(100)
+				if malicious < 5 {
+					randomMaliciousTransaction(peers[i], &counter, 2)
+				} else {
+					randomTransaction(peers[i], &counter)
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
+		time.Sleep(50 * time.Second)
+		if len(peers[1].Transactions) == 0 {
+			t.Errorf("Transaction not received by peer")
+		}
+	})
+
+	t.Run("MinerRewardIsAdded", func(t *testing.T) {
+		time.Sleep(25 * time.Second)
+		//go through all peers and check if the miner reward is added
+		foundMinerReward := false
+		for i := 0; i < 10; i++ {
+			if peers[2].Blockchain.Ledger.Accounts[rsa.EncodePublicKey(peers[i].Account.Pk)] > 1000000 {
+				foundMinerReward = true
+			}
+		}
+		if !foundMinerReward {
+			t.Errorf("Miner reward not added")
 		}
 	})
 

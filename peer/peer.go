@@ -236,10 +236,11 @@ func (p *Peer) lottery() {
 					fmt.Println("time:", t)
 					fmt.Println("slot:", p.CurrenetSlotNum())
 					transactionsToSend := int(math.Min(float64(p.Blockchain.BlockSize), float64(len(p.Transactions))))
-					winnerTransactions := p.Transactions[transactionsToSend:]
+					winnerTransactions := p.Transactions[:transactionsToSend]
 					winnerBlock := block.NewBlock(&p.Blockchain.ChainHead, winnerTransactions, p.Account.Pk)
 					lotteryBlock := block.NewLotteryBlock(*winnerBlock, p.Account.Pk, p.Account.Sk, slotNum, draw)
 					p.SendLottery(*lotteryBlock)
+					p.Blockchain.AddMinerReward(*lotteryBlock)
 					p.Blockchain.ProcessLotteryBlock(*lotteryBlock)
 					p.DeleteTransactions()
 				}

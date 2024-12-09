@@ -132,7 +132,7 @@ func SignTransaction(sk rsa.SecretKey, t *Transaction) SignedTransaction {
 
 func VerifySignedTransaction(pk rsa.PublicKey, st *SignedTransaction) bool {
 	message := st.ID + st.From + st.To + string(st.Amount)
-	if st.Amount%1 != 0 || st.Amount < 0 {
+	if st.Amount%1 != 0 || st.Amount < 1 {
 		fmt.Println("Amount is not valid")
 		return false
 	}
