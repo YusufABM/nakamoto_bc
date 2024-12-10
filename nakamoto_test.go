@@ -341,6 +341,7 @@ func Test(t *testing.T) {
 	})
 
 	//test if we add a longer chain, the blockchain ledger is updated with the new blocks
+	//we create the chains 1-2 and 1-3-4 and test that the chainhead is 4
 	t.Run("longerChainToLedger", func(t *testing.T) {
 		var accounts = make([]*account.Account, 3)
 		genesisLedger := account.MakeLedger()
