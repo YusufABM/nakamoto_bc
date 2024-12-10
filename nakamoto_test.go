@@ -584,4 +584,19 @@ func Test(t *testing.T) {
 		}
 	})
 
+	t.Run("floodRandomMessagesFAST", func(t *testing.T) {
+		time.Sleep(6 * time.Second)
+		for i := 0; i < 50000; i++ {
+			peerNum := i % 9
+			randomTransaction(peers[peerNum], &counter)
+			time.Sleep(4 * time.Millisecond)
+		}
+
+		time.Sleep(500 * time.Millisecond)
+		if len(peers[1].Transactions) < 4999 {
+			t.Errorf("Transactions not all received by peer")
+		}
+		time.Sleep(20 * time.Second)
+	})
+
 }

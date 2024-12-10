@@ -13,7 +13,7 @@ import (
 const SLOTLENGTH int = 1
 const HARDNESS int = 913000000000
 const debugging bool = true
-const BLOCKSIZE int = 40
+const BLOCKSIZE int = 20
 
 // Block is a struct that contains the previous hash, the hash, the nonce, the transactions and the timestamp
 type Block struct {
