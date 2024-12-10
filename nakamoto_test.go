@@ -444,9 +444,14 @@ func Test(t *testing.T) {
 		}
 	})
 
-	//test that we can flood random transactions, that they are received by peers and that they are processed.
+	t.Run("Lottery", func(t *testing.T) {
+		time.Sleep(40 * time.Second)
+	})
 
-	t.Run("floodRandomMessages", func(t *testing.T) {
+	//test that we can flood random transactions, that they are received by peers and that they are processed.
+	//also sends random malicous messages.
+	//when a malicous message is sent, a print statement will be printed to the console about the malicous intent
+	t.Run("floodRandomMessagesWithMaliciousMessages", func(t *testing.T) {
 		time.Sleep(6 * time.Second)
 		for i := 0; i < 10; i++ {
 			for j := 0; j < 20; j++ {
@@ -458,6 +463,20 @@ func Test(t *testing.T) {
 				} else {
 					randomTransaction(peers[i], &counter)
 				}
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
+		time.Sleep(50 * time.Second)
+		if len(peers[1].Transactions) == 0 {
+			t.Errorf("Transaction not received by peer")
+		}
+	})
+
+	t.Run("floodRandomMessages", func(t *testing.T) {
+		time.Sleep(6 * time.Second)
+		for i := 0; i < 10; i++ {
+			for j := 0; j < 20; j++ {
+				randomTransaction(peers[i], &counter)
 				time.Sleep(200 * time.Millisecond)
 			}
 		}
