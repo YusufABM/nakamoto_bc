@@ -16,6 +16,9 @@ import (
 	"time"
 )
 
+var testingThroughput bool = false
+var totalTransactions int = 0
+
 var HARDNESS int = 4
 var SLOTLENGTH int = 1
 
@@ -103,7 +106,7 @@ func (peer *Peer) HandleConnection(conn net.Conn) {
 	defer conn.Close()
 	for {
 		var msg Message
-		ReceivedMessage := make([]byte, 8192*64)
+		ReceivedMessage := make([]byte, 8192*256)
 		n, errcon := conn.Read(ReceivedMessage)
 		if errcon != nil {
 			fmt.Println("Error reading message:", errcon)
@@ -185,6 +188,17 @@ func (peer *Peer) handleMessage(msg Message) {
 			if tickets > block.HARDNESS {
 				fmt.Println("received Lottery Block created")
 				peer.Blockchain.ProcessLotteryBlock(msg.LotteryBlock)
+				if testingThroughput {
+					if peer.name == "Peer1" {
+						totalTransactions += len(msg.LotteryBlock.Block.Transactions)
+						if err != nil {
+							fmt.Println("Error converting slotNum to int:", err)
+						} else {
+							fmt.Println("Total transactions: ", totalTransactions)
+						}
+
+					}
+				}
 				peer.Blockchain.AddMinerReward(msg.LotteryBlock)
 				peer.DeleteTransactions()
 			} else {
